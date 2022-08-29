@@ -3,6 +3,7 @@
 # 2. https://docs.python.org/3/library/stdtypes.html#set-types-set-frozenset
 
 import sys
+import json
 import time
 import numpy as np
 from heapq import heapify, heappop, heappush
@@ -60,6 +61,7 @@ class NMR:
         self.nnodes = np.max([np.max([edge.i, edge.j]) for edge in self.edges])
         self.pruneEdges = [edge for edge in self.edges if edge.j > edge.i + 3]
 
+    @property
     def segments(self):
         # I: sorted list of all atoms covered by prune edges
         I = set()
@@ -125,13 +127,14 @@ def cost_relax(U, S):
 
 
 class BBPerm:
-    def __init__(self, elems) -> None:
+    def __init__(self, keys) -> None:
+        self.elems = list(keys)
         # index of the element last element inserted
         self.idx = -1
         # current order
-        self.order = np.zeros(len(elems), dtype=int)
+        self.order = np.zeros(len(keys), dtype=int)
         # heap of available items
-        self.h = [elem for elem in elems]
+        self.h = [elem for elem in keys]
         heapify(self.h)
         self.state = 'n'  # n:normal, p:prune
 
@@ -177,77 +180,121 @@ class BBPerm:
     def prune(self):
         self.state = 'p'
 
+    def start_from(self, idx, order):
+        self.idx = idx
+        self.order[:(idx+1)] = order[:(idx+1)]
+        self.state = 'n'
+        S = set(order[:(idx+1)])
+        self.h = []
+        for e in self.elems:
+            if e not in S:
+                heappush(self.h, e)
 
-def order_rem(bb, idx, order,  E, S, C, U):
-    # return the total_cost of the removed eids
-    # Remark: The dictionary C is updated.
-    total_cost = 0
-    while idx >= 0 and bb.order[idx] != order[idx]:
-        eid = order[idx]
-        # set invalid value
-        order[idx] = -1
+
+class BB:
+    def __init__(self, fnmr, E, S) -> None:
+        self.fnmr = fnmr
+        self.idx = -1
+        self.bb = BBPerm(E)
+        self.order = np.zeros(len(E), dtype=int)
+        self.nedges = len(E)
+        self.E, self.S = E, S
+
+    def order_rem(self, C, U):
+        # return the total_cost of the removed eids
+        # Remark: The dictionary C is updated.
+        idx = self.idx
+        total_cost = 0
+        while idx >= 0 and self.bb.order[idx] != self.order[idx]:
+            eid = self.order[idx]
+            # set invalid value
+            self.order[idx] = -1
+            cost_edge = 1
+            for sid in self.E[eid].sid:
+                C[sid] -= 1
+                if C[sid] == 0:
+                    cost_edge *= self.S[sid].weight
+                    U.add(sid)
+            if cost_edge > 1:
+                total_cost += cost_edge
+            idx -= 1
+        return total_cost
+
+    def order_add(self, eid, C, U):
+        # add eid to
+        # remark: order and C are updated
+        self.order[self.bb.idx] = eid
+        total_cost = 0
         cost_edge = 1
-        for sid in E[eid].sid:
-            C[sid] -= 1
-            if C[sid] == 0:
-                cost_edge *= S[sid].weight
-                U.add(sid)
+        for sid in self.E[eid].sid:
+            C[sid] += 1
+            # the current eid is the only one covering the sid
+            if C[sid] == 1:
+                cost_edge *= self.S[sid].weight
+                U.remove(sid)
         if cost_edge > 1:
             total_cost += cost_edge
-        idx -= 1
-    return total_cost
+        return total_cost
 
+    def load(self, fname):
+        print('> load', fname)
+        with open(fname, 'r') as fid:
+            data = json.load(fid)
+        self.idx = data['idx']
+        self.order = data['order']
+        self.orderOPT = data['orderOPT']
+        self.costUB = data['costUB']
 
-def order_add(bb, eid, order, E, S, C, U):
-    # add eid to
-    # remark: order and C are updated
-    order[bb.idx] = eid
-    total_cost = 0
-    cost_edge = 1
-    for sid in E[eid].sid:
-        C[sid] += 1
-        # the current eid is the only one covering the sid
-        if C[sid] == 1:
-            cost_edge *= S[sid].weight
-            U.remove(sid)
-    if cost_edge > 1:
-        total_cost += cost_edge
-    return total_cost
+    def dump(self, fname, C, U):
+        print('> dump', fname)
+        data = {}
+        data['idx'] = self.idx
+        data['order'] = self.order
+        data['orderOPT'] = self.orderOPT
+        data['costUB'] = self.costUB
+        data['U'] = U
+        data['C'] = C
+        with open(fname, 'w') as fid:
+            json.dump(data, fid)
 
+    def solve(self, loadFromFile=None):
+        if loadFromFile is not None:
+            self.load(loadFromFile)
+        else:
+            # initial optimal solution
+            self.orderOPT, self.costUB = order_sbbu(self.E, self.S)
+        
+        # C[sid] : number of edges already included in the order that cover segment sid
+        C = {sid: 0 for sid in self.S}
+        for i in range(self.idx + 1):
+            eid = self.order[i]
+            for sid in self.E[eid].sid:
+                C[sid] += 1
 
-def order_bb(E, S):
-    # initial optimal solution
-    orderOPT, costUB = order_sbbu(E, S)
-    # U: set of the uncovered sets
-    U = set(S)
-    # first cost_relax
-    costLB = cost_relax(U, S)
-    if costLB == costUB:
-        return orderOPT, costUB
+        # U: set of the uncovered segments
+        U = set([sid for sid in C if C[sid] == 0])
 
-    idx = 0  # index of the permutation component
-    # C[sid] : number of edges already included in the order that cover segment sid
-    C = {sid: 0 for sid in S}
-    bb = BBPerm(E)
-    idx = -1
-    nedges = len(E)
-    order = np.zeros(len(E), dtype=int)
-    partial_cost = 0
-    eid = bb.next()
-    # loop through all permutations
-    while eid is not None:
-        partial_cost -= order_rem(bb, idx, order, E, S, C, U)
-        partial_cost += order_add(bb, eid, order, E, S, C, U)
-        idx = bb.idx
-        # whe U is empty, the partial_cost is total.
-        costLB = partial_cost + cost_relax(U, S)
-        if costLB >= costUB:
-            bb.prune()
-        elif bb.idx == (nedges - 1) and costLB < costUB:
-            costUB = costLB
-            orderOPT[:] = order
-        eid = bb.next()
-    return orderOPT, costUB
+        # first cost_relax
+        costLB = cost_relax(U, self.S)
+        if costLB == self.costUB:
+            return self.orderOPT, self.costUB
+                                
+        partial_cost = 0
+        eid = self.bb.next()
+        # loop through all permutations
+        while eid is not None:
+            partial_cost -= self.order_rem(C, U)
+            partial_cost += self.order_add(eid, C, U)
+            self.idx = self.bb.idx
+            # whe U is empty, the partial_cost is total.
+            costLB = partial_cost + cost_relax(U, self.S)
+            if costLB >= self.costUB:
+                self.bb.prune()
+            elif self.bb.idx == (self.nedges - 1) and costLB < self.costUB:
+                self.costUB = costLB
+                self.orderOPT[:] = self.order
+            eid = self.bb.next()
+        return self.orderOPT, self.costUB
 
 
 def write_log(fid, line):
@@ -256,14 +303,14 @@ def write_log(fid, line):
 
 
 if __name__ == '__main__':
-    fnmr = '/home/michael/gitrepos/bb-sbbu/DATA_TEST/testB.nmr'
+    fnmr = '/home/michael/gitrepos/bb-sbbu/DATA_TEST/testC.nmr'
     if len(sys.argv) > 1:
         fnmr = sys.argv[1]
     # create log file
     flog = fnmr.replace('.nmr', '.log')
     fid = open(flog, 'w')
     write_log(fid, '> fnmr: ' + fnmr)
-    
+
     # read instance
     nmr = NMR(fnmr)
     E = {edge.eid: edge for edge in nmr.pruneEdges}
@@ -275,9 +322,9 @@ if __name__ == '__main__':
 
     costRELAX = cost_relax(S, S)
     write_log(fid, '> costRELAX ......... %d' % costRELAX)
-    
+
     # call order_sbbu
-    tic = time.time()    
+    tic = time.time()
     orderSBBU, costSBBU = order_sbbu(E, S)
     toc = time.time() - tic
     write_log(fid, '> costSBBU .......... %d' % costSBBU)
@@ -285,9 +332,10 @@ if __name__ == '__main__':
 
     # call order_bb if needed
     tic = time.time()
-    costBB, costBB = order_bb(E, S)
+    bb = BB(E, S)
+    costBB, costBB = bb.solve()
     toc = time.time() - tic
     write_log(fid, '> costBB ............ %d' % costBB)
     write_log(fid, '> timeBB (secs) ..... %g' % toc)
-    
+
     fid.close()

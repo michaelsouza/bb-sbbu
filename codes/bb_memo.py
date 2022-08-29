@@ -6,6 +6,7 @@ from bb import *
 
 
 def order_bb_memo(E, S, costUB=np.inf, memo={}):
+    # empty subproblem
     if len(S) == 0:
         return tuple(E), 0
     # remember a solution with more relaxed upper bound
@@ -15,14 +16,21 @@ def order_bb_memo(E, S, costUB=np.inf, memo={}):
         if m['costUB'] < costUB:
             return m['orderOPT'], m['costUB']
         return [], costUB
-
+    
+    # U: set of the uncovered segments
+    U = set(S)
     orderOPT = []
     costRELAX = cost_relax(S, S)
     # k: split index 
     k = 3 if len(S) > 3 else len(S)    
     # loop on all prefixes of length k
-    for P in permutations(E, k):
-        costP = order_cost(P, E, S, costUB)
+    bb = BBPerm(E)
+    idx = -1
+    order = np.zeros(len(E), dtype=int)
+    eid = bb.next()
+    while eid is not None:
+        costP -= order_rem(bb, idx, order, E, S, C, U)
+        costP += order_add(bb, eid, order, E, S, C, U)
         if costP >= costUB:
             continue
         F = tuple()
