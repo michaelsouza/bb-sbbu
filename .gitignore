@@ -1,0 +1,4 @@
+DATA_TEST/testA.log
+DATA_TEST/testB.log
+DATA_TEST/testC.log
+sources/__pycache__/bb.cpython-310.pyc

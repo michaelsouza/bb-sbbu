@@ -93,19 +93,21 @@ class NMR:
         return S
 
 
-def order_cost(order, E, S):
+def order_cost(order, E, S, costUB=np.inf):
     total_cost = 0  # total cost
     # B[sid] is set to true by the first edge that covers it.
-    B = {sid: False for sid in S}
+    B = set()
     for eid in order:
         edge_cost = 1
         for sid in E[eid].sid:
             # first edge to cover sid
-            if B[sid] == False:
+            if sid not in B and sid in S:
                 edge_cost *= S[sid].weight
-                B[sid] = True
+                B.add(sid)
         # the cost of an edge that covers no segment is zero (not one)
         total_cost += edge_cost if edge_cost > 1 else 0
+        if total_cost >= costUB:
+            return np.inf
     return total_cost
 
 
@@ -216,18 +218,23 @@ def order_add(bb, eid, order, E, S, C, U):
 def order_bb(E, S):
     # initial optimal solution
     orderOPT, costUB = order_sbbu(E, S)
-    # loop through all permutations
+    # U: set of the uncovered sets
+    U = set(S)
+    # first cost_relax
+    costLB = cost_relax(U, S)
+    if costLB == costUB:
+        return orderOPT, costUB
+
     idx = 0  # index of the permutation component
     # C[sid] : number of edges already included in the order that cover segment sid
     C = {sid: 0 for sid in S}
-    # U: set of the uncovered sets
-    U = set(S)
     bb = BBPerm(E)
     idx = -1
     nedges = len(E)
     order = np.zeros(len(E), dtype=int)
     partial_cost = 0
     eid = bb.next()
+    # loop through all permutations
     while eid is not None:
         partial_cost -= order_rem(bb, idx, order, E, S, C, U)
         partial_cost += order_add(bb, eid, order, E, S, C, U)
@@ -277,10 +284,10 @@ if __name__ == '__main__':
     write_log(fid, '> timeSBBU (secs) ... %g' % toc)
 
     # call order_bb if needed
-    if costRELAX < costSBBU:
-        tic = time.time()
-        costBB, costBB = order_bb(E, S)
-        toc = time.time() - tic
-        write_log(fid, '> costBB ............ %d' % costBB)
-        write_log(fid, '> timeBB (secs) ..... %g' % toc)
+    tic = time.time()
+    costBB, costBB = order_bb(E, S)
+    toc = time.time() - tic
+    write_log(fid, '> costBB ............ %d' % costBB)
+    write_log(fid, '> timeBB (secs) ..... %g' % toc)
+    
     fid.close()
