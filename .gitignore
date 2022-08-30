@@ -2,5 +2,5 @@ DATA_TEST/testA.log
 DATA_TEST/testB.log
 DATA_TEST/testC.log
 codes/__pycache__/*.pyc
-DATA_EPSD_00_DMAX_50/*.bkp
-DATA_EPSD_00_DMAX_60/*.bkp
+DATA_EPSD_00_DMAX_50/*.pkl
+DATA_EPSD_00_DMAX_60/*.pkl
