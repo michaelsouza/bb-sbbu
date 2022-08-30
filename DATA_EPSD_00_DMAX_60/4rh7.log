@@ -1,0 +1,11 @@
+> fnmr DATA_EPSD_00_DMAX_60/4rh7.nmr
+> tmax (secs) ....... 60
+> nnodes ............ 9015
+> lenE .............. 58792
+> lenS .............. 9004
+> costRELAX ......... 18032
+> costSBBU .......... 18056
+> timeSBBU (secs) ... 0.702212
+> timeoutBB ......... True
+> costBB ............ 18056
+> timeBB (secs) ..... 60.0205

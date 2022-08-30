@@ -1,7 +1,11 @@
-> fnmr: DATA_EPSD_00_DMAX_50/1fhl.nmr
+> fnmr DATA_EPSD_00_DMAX_50/1fhl.nmr
+> tmax (secs) ....... 60
 > nnodes ............ 1002
 > lenE .............. 3378
 > lenS .............. 999
 > costRELAX ......... 1998
 > costSBBU .......... 1998
-> timeSBBU (secs) ... 0.0228934
+> timeSBBU (secs) ... 0.014436
+> timeoutBB ......... False
+> costBB ............ 1998
+> timeBB (secs) ..... 0.015626
