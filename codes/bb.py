@@ -2,19 +2,22 @@
 # 1. https://docs.python.org/3/library/heapq.html
 # 2. https://docs.python.org/3/library/stdtypes.html#set-types-set-frozenset
 
+import os
 import sys
-import json
 import time
+import pickle
 import numpy as np
+import networkx as nx
+from itertools import permutations
 from heapq import heapify, heappop, heappush
 
 
-class Segment:
+class NMRSegment:
     SID = 0  # class static variable
 
     def __init__(self, i, j) -> None:
-        Segment.SID += 1
-        self.sid = Segment.SID
+        NMRSegment.SID += 1
+        self.sid = NMRSegment.SID
         self.i = i
         self.j = j
         # set of the indexes of the prune edges that cover this segment
@@ -24,21 +27,24 @@ class Segment:
     def weight(self):
         return int(2**(self.j - self.i + 1))
 
+    def resetSID():
+        NMRSegment.SID = 0
+
     def add_eid(self, eid):
         self.eid.add(eid)
 
     def __eq__(self, other: object) -> bool:
-        if isinstance(other, Segment):
+        if isinstance(other, NMRSegment):
             return self.i == other.i and self.j == other.j
         return False
 
 
-class EdgeNMR:
+class NMREdge:
     EID = 0  # class static variable
 
     def __init__(self, i, j) -> None:
-        EdgeNMR.EID += 1
-        self.eid = EdgeNMR.EID  # edge id
+        NMREdge.EID += 1
+        self.eid = NMREdge.EID  # edge id
         self.i = i
         self.j = j
         self.sid = set()  # set of the indexes of the segments covered by this edge
@@ -49,20 +55,28 @@ class EdgeNMR:
     def check_cover(self, s):
         return self.i + 3 <= s.i and s.j <= self.j
 
+    def resetEID():
+        NMREdge.EID = 0
+
 
 class NMR:
     def __init__(self, fnmr) -> None:
+        self.fnmr = fnmr
+        NMREdge.resetEID()
         self.edges = []
         with open(fnmr, 'r') as fid:
             for row in fid:
                 i = int(row.split()[0])
                 j = int(row.split()[1])
-                self.edges.append(EdgeNMR(i, j))
+                self.edges.append(NMREdge(i, j))
         self.nnodes = np.max([np.max([edge.i, edge.j]) for edge in self.edges])
         self.pruneEdges = [edge for edge in self.edges if edge.j > edge.i + 3]
+        self.segments = self._segments()
+        self.E, self.S = self._ordering_data()
 
-    @property
-    def segments(self):
+    
+    def _segments(self):
+        NMRSegment.resetSID()
         # I: sorted list of all atoms covered by prune edges
         I = set()
         for edge in self.pruneEdges:
@@ -77,13 +91,13 @@ class NMR:
 
         # Consecutive atoms covered by the same set of edges belong to the same segment
         S = []  # S: list of all segments
-        s = Segment(I[0], I[0])
+        s = NMRSegment(I[0], I[0])
         for j in I:
             if E[s.i] == E[j]:
                 s.j = j
             else:
                 S.append(s)
-                s = Segment(j, j)
+                s = NMRSegment(j, j)
         S.append(s)
 
         # O(len(S) * len(self.pruneEdges))
@@ -94,6 +108,25 @@ class NMR:
                     s.add_eid(edge.eid)
         return S
 
+    @property
+    def ordering_graph(self):
+        G = nx.Graph()
+        E, S = self._ordering_data
+        s_lbl = lambda sid: '%d:%d' % (S[sid].i, S[sid].j)
+        for sid in S:                
+            G.add_node(s_lbl(sid), weight=S[sid].weight)
+        
+        for eid in E:
+            e_lbl = '%d' % eid
+            G.add_node(e_lbl)
+            for sid in E[eid].sid:            
+                G.add_edge(e_lbl, s_lbl(sid))
+        return G
+    
+    def _ordering_data(self):
+        E = {e.eid:e for e in self.pruneEdges}
+        S = {s.sid:s for s in self.segments}
+        return E, S
 
 def order_cost(order, E, S, costUB=np.inf):
     total_cost = 0  # total cost
@@ -113,10 +146,23 @@ def order_cost(order, E, S, costUB=np.inf):
     return total_cost
 
 
-def order_sbbu(E, S):
+def order_sbbu(nmr):
+    E = nmr.E
     order = list(E)  # list of edges eid
     order = sorted(order, key=lambda eid: (E[eid].j, E[eid].i))
-    return order, order_cost(order, E, S)
+    return order, order_cost(order, E, nmr.S)
+
+
+def order_brute(nmr: NMR):
+    '''Evaluate all posible permutations.'''
+    E, S = nmr.E, nmr.S
+    orderOPT, costOPT = [], np.inf
+    for p in permutations(E):
+        c = order_cost(p, E, S)
+        if c < costOPT:
+            costOPT = c
+            orderOPT = list(p).copy()
+    return orderOPT, costOPT
 
 
 def cost_relax(U, S):
@@ -192,20 +238,21 @@ class BBPerm:
 
 
 class BB:
-    def __init__(self, fnmr, E, S) -> None:
-        self.fnmr = fnmr
+    def __init__(self, nmr: NMR) -> None:
+        self.nmr = nmr
+        self.E, self.S = nmr.E, nmr.S
+        self.nedges = len(self.E)
         self.idx = -1
-        self.bb = BBPerm(E)
-        self.order = np.zeros(len(E), dtype=int)
-        self.nedges = len(E)
-        self.E, self.S = E, S
+        self.perm = BBPerm(nmr.E)
+        self.order = np.zeros(len(self.E), dtype=int)
+        self.timeout = False
 
     def order_rem(self, C, U):
         # return the total_cost of the removed eids
         # Remark: The dictionary C is updated.
         idx = self.idx
         total_cost = 0
-        while idx >= 0 and self.bb.order[idx] != self.order[idx]:
+        while idx >= 0 and self.perm.order[idx] != self.order[idx]:
             eid = self.order[idx]
             # set invalid value
             self.order[idx] = -1
@@ -223,7 +270,7 @@ class BB:
     def order_add(self, eid, C, U):
         # add eid to
         # remark: order and C are updated
-        self.order[self.bb.idx] = eid
+        self.order[self.perm.idx] = eid
         total_cost = 0
         cost_edge = 1
         for sid in self.E[eid].sid:
@@ -236,17 +283,21 @@ class BB:
             total_cost += cost_edge
         return total_cost
 
-    def load(self, fname):
-        print('> load', fname)
-        with open(fname, 'r') as fid:
-            data = json.load(fid)
+    def load(self):
+        fname = self.nmr.fnmr.replace('.nmr','.pkl')
+        print('> unpicliking', fname)
+        with open(fname, 'rb') as fid:
+            data = pickle.load(fid)
         self.idx = data['idx']
         self.order = data['order']
         self.orderOPT = data['orderOPT']
         self.costUB = data['costUB']
+        C, U = data['C'], data['U']
+        return C, U
 
-    def dump(self, fname, C, U):
-        print('> dump', fname)
+    def dump(self, C, U):
+        fname = self.nmr.fnmr.replace('.nmr','.pkl')
+        print('> picliking', fname)
         data = {}
         data['idx'] = self.idx
         data['order'] = self.order
@@ -254,15 +305,16 @@ class BB:
         data['costUB'] = self.costUB
         data['U'] = U
         data['C'] = C
-        with open(fname, 'w') as fid:
-            json.dump(data, fid)
+        with open(fname, 'wb') as fid:
+            pickle.dump(data, fid)
 
-    def solve(self, loadFromFile=None):
-        if loadFromFile is not None:
-            self.load(loadFromFile)
+    def solve(self, unpickling=False, tmax=60):
+        tic = time.time()
+        if unpickling:
+            self.load()
         else:
             # initial optimal solution
-            self.orderOPT, self.costUB = order_sbbu(self.E, self.S)
+            self.orderOPT, self.costUB = order_sbbu(self.nmr)
         
         # C[sid] : number of edges already included in the order that cover segment sid
         C = {sid: 0 for sid in self.S}
@@ -276,24 +328,30 @@ class BB:
 
         # first cost_relax
         costLB = cost_relax(U, self.S)
-        if costLB == self.costUB:
+        if costLB == self.costUB:            
             return self.orderOPT, self.costUB
                                 
         partial_cost = 0
-        eid = self.bb.next()
-        # loop through all permutations
+        eid = self.perm.next()
+        # loop through all permutations        
         while eid is not None:
             partial_cost -= self.order_rem(C, U)
             partial_cost += self.order_add(eid, C, U)
-            self.idx = self.bb.idx
+            self.idx = self.perm.idx
             # whe U is empty, the partial_cost is total.
             costLB = partial_cost + cost_relax(U, self.S)
+            toc = time.time() - tic
+            if toc > tmax:
+                self.timeout = True
+                print('> timeoutBB %f seconds' % toc)
+                self.dump(C, U)
+                break
             if costLB >= self.costUB:
-                self.bb.prune()
-            elif self.bb.idx == (self.nedges - 1) and costLB < self.costUB:
+                self.perm.prune()
+            elif self.perm.idx == (self.nedges - 1) and costLB < self.costUB:
                 self.costUB = costLB
                 self.orderOPT[:] = self.order
-            eid = self.bb.next()
+            eid = self.perm.next()
         return self.orderOPT, self.costUB
 
 
@@ -301,21 +359,29 @@ def write_log(fid, line):
     print(line)
     fid.write(line + '\n')
 
-
-if __name__ == '__main__':
+def call_solvers(*argv):
     fnmr = '/home/michael/gitrepos/bb-sbbu/DATA_TEST/testC.nmr'
-    if len(sys.argv) > 1:
-        fnmr = sys.argv[1]
+    tmax = 1
+    for i, arg in enumerate(argv):
+        if arg == '-fnmr':
+            fnmr = argv[i+1]
+        if arg == '-tmax':
+            tmax = float(argv[i+1])            
+    
+    flog = fnmr.replace('.nmr', '.log')    
+    # check if already has a log file
+    if os.path.exists(flog):
+        print('> skip (already solved) %s' % fnmr)
+        sys.exit(0)
     # create log file
-    flog = fnmr.replace('.nmr', '.log')
     fid = open(flog, 'w')
-    write_log(fid, '> fnmr: ' + fnmr)
+    write_log(fid, '> fnmr ' + fnmr)
 
     # read instance
     nmr = NMR(fnmr)
-    E = {edge.eid: edge for edge in nmr.pruneEdges}
-    S = {s.sid: s for s in nmr.segments()}
+    E, S = nmr.E, nmr.S
 
+    write_log(fid, '> tmax (secs) ....... %g' % tmax)
     write_log(fid, '> nnodes ............ %d' % nmr.nnodes)
     write_log(fid, '> lenE .............. %d' % len(E))
     write_log(fid, '> lenS .............. %d' % len(S))
@@ -325,17 +391,21 @@ if __name__ == '__main__':
 
     # call order_sbbu
     tic = time.time()
-    orderSBBU, costSBBU = order_sbbu(E, S)
+    orderSBBU, costSBBU = order_sbbu(nmr)
     toc = time.time() - tic
     write_log(fid, '> costSBBU .......... %d' % costSBBU)
     write_log(fid, '> timeSBBU (secs) ... %g' % toc)
 
     # call order_bb if needed
     tic = time.time()
-    bb = BB(E, S)
-    costBB, costBB = bb.solve()
+    bb = BB(nmr)
+    costBB, costBB = bb.solve(tmax=tmax)
     toc = time.time() - tic
+    write_log(fid, '> timeoutBB ......... %s' % bb.timeout)
     write_log(fid, '> costBB ............ %d' % costBB)
     write_log(fid, '> timeBB (secs) ..... %g' % toc)
 
     fid.close()
+
+if __name__ == '__main__':
+    call_solvers(sys.argv)

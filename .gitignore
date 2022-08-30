@@ -1,4 +1,6 @@
 DATA_TEST/testA.log
 DATA_TEST/testB.log
 DATA_TEST/testC.log
-sources/__pycache__/bb.cpython-310.pyc
+codes/__pycache__/*.pyc
+DATA_EPSD_00_DMAX_50/*.bkp
+DATA_EPSD_00_DMAX_60/*.bkp
