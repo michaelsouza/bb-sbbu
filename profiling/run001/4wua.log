@@ -1,0 +1,11 @@
+> fnmr profiling/data/4wua.nmr
+> tmax (secs) ....... 10
+> nnodes ............ 1033
+> lenE .............. 3413
+> lenS .............. 1028
+> costRELAX ......... 2062
+> costSBBU .......... 2068
+> timeSBBU (secs) ... 0.00928116
+> timeoutBB ......... True
+> costBB ............ 2068
+> timeBB (secs) ..... 10.0016

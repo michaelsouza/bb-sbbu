@@ -22,10 +22,7 @@ class NMRSegment:
         self.j = j
         # set of the indexes of the prune edges that cover this segment
         self.eid = set()
-
-    @property
-    def weight(self):
-        return int(2**(self.j - self.i + 1))
+        self.update_weight()
 
     def resetSID():
         NMRSegment.SID = 0
@@ -37,6 +34,9 @@ class NMRSegment:
         if isinstance(other, NMRSegment):
             return self.i == other.i and self.j == other.j
         return False
+
+    def update_weight(self):
+        self.weight = int(2**(self.j - self.i + 1))
 
 
 class NMREdge:
@@ -83,11 +83,11 @@ class NMR:
             I.update(np.arange(edge.i + 3, edge.j + 1))
         I = sorted(list(I))
 
-        # E[i]: set of the indexes of the edges covering atom 'i'
+        # E[i]: set of the eid's of the edges covering atom 'i'
         E = {i: set() for i in I}
-        for eid, edge in enumerate(self.pruneEdges):
+        for edge in self.pruneEdges:
             for i in range(edge.i + 3, edge.j+1):
-                E[i].add(eid)
+                E[i].add(edge.eid)
 
         # Consecutive atoms covered by the same set of edges belong to the same segment
         S = []  # S: list of all segments
@@ -96,8 +96,12 @@ class NMR:
             if E[s.i] == E[j]:
                 s.j = j
             else:
+                # the s.i and s.j were possibly updated inside the loop, so it's necessary
+                # to update/correct the s.weight.
+                s.update_weight()
                 S.append(s)
                 s = NMRSegment(j, j)
+        s.update_weight()
         S.append(s)
 
         # O(len(S) * len(self.pruneEdges))
@@ -105,13 +109,13 @@ class NMR:
             for edge in self.pruneEdges:
                 if edge.check_cover(s):
                     edge.add_sid(s.sid)
-                    s.add_eid(edge.eid)
+                    s.add_eid(edge.eid)        
         return S
 
     @property
     def ordering_graph(self):
         G = nx.Graph()
-        E, S = self._ordering_data
+        E, S = self.E, self.S
         s_lbl = lambda sid: '%d:%d' % (S[sid].i, S[sid].j)
         for sid in S:                
             G.add_node(s_lbl(sid), weight=S[sid].weight)
@@ -247,41 +251,40 @@ class BB:
         self.order = np.zeros(len(self.E), dtype=int)
         self.timeout = False
 
-    def order_rem(self, C, U):
-        # return the total_cost of the removed eids
+    def order_rem(self, C, U):        
+        # Returns the total_cost of the eids removed from self.order
         # Remark: The dictionary C is updated.
         idx = self.idx
         total_cost = 0
-        while idx >= 0 and self.perm.order[idx] != self.order[idx]:
+        while idx >= self.perm.idx and self.perm.order[idx] != self.order[idx]:
             eid = self.order[idx]
             # set invalid value
             self.order[idx] = -1
-            cost_edge = 1
+            eid_cost = 1
             for sid in self.E[eid].sid:
                 C[sid] -= 1
                 if C[sid] == 0:
-                    cost_edge *= self.S[sid].weight
+                    eid_cost *= self.S[sid].weight
                     U.add(sid)
-            if cost_edge > 1:
-                total_cost += cost_edge
+            if eid_cost > 1:
+                total_cost += eid_cost
             idx -= 1
         return total_cost
 
     def order_add(self, eid, C, U):
-        # add eid to
-        # remark: order and C are updated
-        self.order[self.perm.idx] = eid
-        total_cost = 0
-        cost_edge = 1
+        ''' Add eid edge to the self.order and update C and U.
+            C[sid] : number of edges on self.order covering segment sid
+            U: set of the uncovered segments.
+        '''
+        self.order[self.perm.idx] = eid        
+        eid_cost = 1
         for sid in self.E[eid].sid:
             C[sid] += 1
             # the current eid is the only one covering the sid
             if C[sid] == 1:
-                cost_edge *= self.S[sid].weight
+                eid_cost *= self.S[sid].weight
                 U.remove(sid)
-        if cost_edge > 1:
-            total_cost += cost_edge
-        return total_cost
+        return eid_cost if eid_cost > 1 else 0            
 
     def load(self):
         fname = self.nmr.fnmr.replace('.nmr','.pkl')
@@ -371,7 +374,7 @@ def call_solvers(*argv):
         if arg == '-clean_log':
             clean_log = True
     
-    flog = fnmr.replace('.nmr', '.log')    
+    flog = fnmr.replace('.nmr', '.log')
     # check if already has a log file
     if not clean_log and os.path.exists(flog):
         print('> skip (already solved) %s' % fnmr)

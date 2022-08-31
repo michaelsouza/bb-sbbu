@@ -1,0 +1,5 @@
+commit 2636abdedf61687de4f8396669f133bd2c632c09
+Author: Michael Souza <michael@ufc.br>
+Date:   Wed Aug 31 11:28:58 2022 -0300
+
+    add ignore lock xlsx

@@ -1,0 +1,31 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "dbg codes/bb.py",
+            "type": "python",
+            "request": "launch",
+            "program": "codes/bb.py",
+            "console": "integratedTerminal",
+            "args": [
+                "-tmax",
+                "3600",
+                "-fnmr",
+                "profiling/data/4wua.nmr",
+                "-clean_log"
+            ],
+            "justMyCode": true
+        },
+        {
+            "name": "dbg codes/tests.py",
+            "type": "python",
+            "request": "launch",
+            "program": "codes/tests.py",
+            "console": "integratedTerminal",            
+            "justMyCode": true
+        }
+    ]
+}
