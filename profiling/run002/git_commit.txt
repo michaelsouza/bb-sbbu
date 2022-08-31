@@ -1,0 +1,5 @@
+commit 1d0cf12ae4f2069079b93ed2d20339fed80fbb07
+Author: Michael Souza <michael@ufc.br>
+Date:   Wed Aug 31 12:26:27 2022 -0300
+
+    Add profiler
