@@ -362,15 +362,18 @@ def write_log(fid, line):
 def call_solvers(*argv):
     fnmr = '/home/michael/gitrepos/bb-sbbu/DATA_TEST/testC.nmr'
     tmax = 1
-    for i, arg in enumerate(argv):
+    clean_log = False
+    for i, arg in enumerate(argv):        
         if arg == '-fnmr':
             fnmr = argv[i+1]
         if arg == '-tmax':
-            tmax = float(argv[i+1])            
+            tmax = float(argv[i+1])
+        if arg == '-clean_log':
+            clean_log = True
     
     flog = fnmr.replace('.nmr', '.log')    
     # check if already has a log file
-    if os.path.exists(flog):
+    if not clean_log and os.path.exists(flog):
         print('> skip (already solved) %s' % fnmr)
         sys.exit(0)
     # create log file
@@ -408,4 +411,4 @@ def call_solvers(*argv):
     fid.close()
 
 if __name__ == '__main__':
-    call_solvers(sys.argv)
+    call_solvers(*sys.argv)
