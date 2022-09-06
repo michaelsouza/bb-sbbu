@@ -8,18 +8,32 @@ protected:
 
 TEST_F( NMRTest, TestA ) {
    NMR nmr( "../DATA_TEST/testA.nmr" );
-   auto& S = nmr.m_segments;
-   std::vector<NMRSegment> Sans;
-   Sans.push_back( NMRSegment( 4, 5 ) );
-   Sans.push_back( NMRSegment( 6, 10 ) );
-   Sans.push_back( NMRSegment( 11, 15 ) );
-   Sans.push_back( NMRSegment( 18, 20 ) );
-   EXPECT_EQ( S.size(), Sans.size() );
-   for ( size_t i = 0; i < S.size(); i++ )
-      EXPECT_EQ( S[ i ], Sans[ i ] );
 
-   auto & E = nmr.m_E;
-   auto & S = nmr.m_S;
+   std::vector<NMRSegment> segments;
+   segments.push_back( NMRSegment( 4, 5 ) );
+   segments.push_back( NMRSegment( 6, 10 ) );
+   segments.push_back( NMRSegment( 11, 15 ) );
+   segments.push_back( NMRSegment( 18, 20 ) );
+   EXPECT_EQ( segments.size(), nmr.m_segments.size() );
+   for ( size_t i = 0; i < segments.size(); i++ )
+      EXPECT_EQ( segments[ i ], nmr.m_segments[ i ] );
+
+   auto& E = nmr.m_E;
+   auto& S = nmr.m_S;
+   for (auto &&kv : E)
+   {
+      auto eid = kv.first;
+      auto& e = kv.second;
+      for( auto &&sid : e.m_sid)
+      {
+         auto &s = S[sid];
+         EXPECT_LE(e.m_i + 3, s.m_i);
+         EXPECT_LE(e.m_i + 3, s.m_j);
+         EXPECT_LE(s.m_i, e.m_j);
+         EXPECT_LE(s.m_j, e.m_j);
+      }
+   }
+   
 }
 
 TEST( order_sbbu, SolveA ) {

@@ -60,8 +60,9 @@ public:
    }
 
    void update_weight() {
-      unsigned int p = m_j - m_i + 1;
+      weight_t p = m_j - m_i + 1;
       if ( p > 63 ) throw std::invalid_argument( "Segment weight is too large to be represented (overflow)." );
+      m_weight = 1 << p;
    }
 
    bool operator==( NMRSegment const& rhs ) const {
@@ -98,7 +99,7 @@ public:
    }
 
    bool check_cover( NMRSegment& s ) {
-      return m_i + 3 <= s.m_i and s.m_j <= m_j;
+      return (m_i + 3 <= s.m_i) && (s.m_j <= m_j);
    }
 
    static void resetEID() {
@@ -129,20 +130,18 @@ private:
             E[ i ].insert( e.m_eid );
 
       // Consecutive atoms covered by the same set of edges belong to the same segment
-      NMRSegment s( I[ 0 ], I[ 0 ] );
-
-      for ( auto&& j : I ) {
-         if ( E[ s.m_i ] == E[ j ] )
-            s.m_j = j;
-         else { // the s.i and s.j were possibly updated inside the loop, so it's necessary
-            // to update/correct the s.weight.
-            s.update_weight();
-            m_segments.push_back( s );
-            s.m_i = s.m_j = j;
+      {
+         int s_i = I[ 0 ], s_j = I[ 0 ];
+         for ( auto&& j : I ) {
+            if ( E[ s_i ] == E[ j ] )
+               s_j = j;
+            else {
+               m_segments.push_back( NMRSegment( s_i, s_j ) );
+               s_i = s_j = j;
+            }
          }
+         m_segments.push_back( NMRSegment( s_i, s_j ) );
       }
-      s.update_weight();
-      m_segments.push_back( s );
 
       // O(len(S) * len(m_pruneEdges))
       for ( auto&& s : m_segments )
@@ -182,10 +181,8 @@ public:
       
       m_nnodes = 0;
       for ( auto&& e : m_edges ) {
-         if ( m_nnodes < e.m_j )
-            m_nnodes = e.m_j;
-         if ( e.m_j > e.m_i + 3 )
-            m_pruneEdges.push_back( e );
+         if ( m_nnodes < e.m_j ) m_nnodes = e.m_j;
+         if ( e.m_j > e.m_i + 3 ) m_pruneEdges.push_back( e );
       }
       setSegments();
       setOrderingData();
