@@ -30,14 +30,13 @@ class NMRSegment:
     def add_eid(self, eid):
         self.eid.add(eid)
 
+    def update_weight(self):
+        self.weight = int(2**(self.j - self.i + 1))
+
     def __eq__(self, other: object) -> bool:
         if isinstance(other, NMRSegment):
             return self.i == other.i and self.j == other.j
         return False
-
-    def update_weight(self):
-        self.weight = int(2**(self.j - self.i + 1))
-
 
 class NMREdge:
     EID = 0  # class static variable
@@ -69,7 +68,7 @@ class NMR:
                 i = int(row.split()[0])
                 j = int(row.split()[1])
                 self.edges.append(NMREdge(i, j))
-        self.nnodes = np.max([np.max([edge.i, edge.j]) for edge in self.edges])
+        self.nnodes = np.max([edge.j for edge in self.edges])
         self.pruneEdges = [edge for edge in self.edges if edge.j > edge.i + 3]
         self.segments = self._segments()
         self.E, self.S = self._ordering_data()
@@ -178,13 +177,13 @@ def cost_relax(U, S):
 
 class BBPerm:
     def __init__(self, keys) -> None:
-        self.elems = list(keys)
+        self.keys = list(keys)
         # index of the element last element inserted
         self.idx = -1
         # current order
         self.order = np.zeros(len(keys), dtype=int)
         # heap of available items
-        self.h = [elem for elem in keys]
+        self.h = [key for key in keys]
         heapify(self.h)
         self.state = 'n'  # n:normal, p:prune
 
@@ -201,13 +200,12 @@ class BBPerm:
         if self.idx == -1:
             return None
         emin = self.minGT(self.order[self.idx])
+        heappush(self.h, self.order[self.idx])
         if emin is None:
-            heappush(self.h, self.order[self.idx])
             # set invalid value
             self.order[self.idx] = -1
             self.idx -= 1
-            return self.next()
-        heappush(self.h, self.order[self.idx])
+            return self.next()        
         self.order[self.idx] = emin
         self.state = 'n'
         return emin
@@ -236,7 +234,7 @@ class BBPerm:
         self.state = 'n'
         S = set(order[:(idx+1)])
         self.h = []
-        for e in self.elems:
+        for e in self.keys:
             if e not in S:
                 heappush(self.h, e)
 
@@ -248,7 +246,7 @@ class BB:
         self.nedges = len(self.E)
         self.idx = -1
         self.perm = BBPerm(nmr.E)
-        self.order = np.zeros(len(self.E), dtype=int)
+        self.order = np.zeros(self.nedges, dtype=int)
         self.timeout = False
 
     def order_rem(self, C, U):        
@@ -321,13 +319,9 @@ class BB:
         
         # C[sid] : number of edges already included in the order that cover segment sid
         C = {sid: 0 for sid in self.S}
-        for i in range(self.idx + 1):
-            eid = self.order[i]
-            for sid in self.E[eid].sid:
-                C[sid] += 1
 
         # U: set of the uncovered segments
-        U = set([sid for sid in C if C[sid] == 0])
+        U = set([sid for sid in C])
 
         # first cost_relax
         costLB = cost_relax(U, self.S)
@@ -341,7 +335,7 @@ class BB:
             partial_cost -= self.order_rem(C, U)
             partial_cost += self.order_add(eid, C, U)
             self.idx = self.perm.idx
-            # whe U is empty, the partial_cost is total.
+            # when U is empty, the partial_cost is total.
             costLB = partial_cost + cost_relax(U, self.S)
             toc = time.time() - tic
             if toc > tmax:

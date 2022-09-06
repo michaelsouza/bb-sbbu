@@ -7,3 +7,5 @@ DATA_EPSD_00_DMAX_60/*.pkl
 .~lock.results.xlsx#
 *.pkl
 profiling/data/4wua.log
+build/*
+bb.dbg

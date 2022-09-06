@@ -18,7 +18,7 @@ for wdir in sorted(WDIR):
     for fnmr in sorted(os.listdir(wdir)):
         if not fnmr.endswith('.nmr'):
             continue
-        arg = '-tmax %g -fnmr %s' % (tmax, os.path.join(wdir, fnmr))
+        arg = '-tmax %g -fnmr %s -clean_log' % (tmax, os.path.join(wdir, fnmr))
         ARGV.append(arg.split())
 
 pool = mp.Pool(mp.cpu_count() - 1)

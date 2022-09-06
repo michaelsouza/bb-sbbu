@@ -19,9 +19,8 @@ class TestNMR(unittest.TestCase):
 
 
 class TestBB(unittest.TestCase):
-    def test_solveA(self):
-        fnmr = 'DATA_TEST/testA.nmr'
-        nmr = NMR(fnmr)
+    def test_solveA(self):        
+        nmr = NMR('DATA_TEST/testA.nmr')
         bb = BB(nmr)
         orderBB, costBB = bb.solve()
         self.assertEqual(costBB, 168)
@@ -33,8 +32,7 @@ class TestBB(unittest.TestCase):
         self.assertLess(id1, id2)
 
     def test_solveB(self):
-        fnmr = 'DATA_TEST/testB.nmr'
-        nmr = NMR(fnmr)
+        nmr = NMR('DATA_TEST/testB.nmr')
         bb = BB(nmr)
         orderBB, costBB = bb.solve()
         orderBB, costBF = order_brute(nmr)        
@@ -43,8 +41,7 @@ class TestBB(unittest.TestCase):
             self.assertEqual(orderBB[i], orderBB[i])
 
     def test_solveC(self):
-        fnmr = 'DATA_TEST/testC.nmr'
-        nmr = NMR(fnmr)
+        nmr = NMR('DATA_TEST/testC.nmr')
         bb = BB(nmr)
         orderBB, costBB = bb.solve()
         orderBB, costBF = order_brute(nmr)        
@@ -53,8 +50,7 @@ class TestBB(unittest.TestCase):
             self.assertEqual(orderBB[i], orderBB[i])
 
     def test_solveD(self):
-        fnmr = 'DATA_TEST/testD.nmr'
-        nmr = NMR(fnmr)
+        nmr = NMR('DATA_TEST/testD.nmr')
         bb = BB(nmr)
         orderBB, costBB = bb.solve()
         orderBB, costBF = order_brute(nmr)        
@@ -63,8 +59,7 @@ class TestBB(unittest.TestCase):
             self.assertEqual(orderBB[i], orderBB[i])
 
     def test_solveE(self):
-        fnmr = 'DATA_TEST/testE.nmr'
-        nmr = NMR(fnmr)
+        nmr = NMR('DATA_TEST/testE.nmr')
         bb = BB(nmr)
         orderBB, costBB = bb.solve()
         orderBB, costBF = order_brute(nmr)        
@@ -74,10 +69,15 @@ class TestBB(unittest.TestCase):
 
 
 class TestBBPerm(unittest.TestCase):
-    def test_start_from(self):
-        fnmr = 'DATA_TEST/testC.nmr'
-        nmr = NMR(fnmr)
-        E = {e.eid: e for e in nmr.pruneEdges}
+    def test_minGT(self):                
+        E = {9,15,5,20,18,7}
+        p = BBPerm(E)
+        emin = p.minGT(15)
+        self.assertEqual(emin, 18)
+
+    def test_start_from(self):        
+        nmr = NMR('DATA_TEST/testC.nmr')
+        E = nmr.E
         bb = BBPerm(E.keys())
         # warming up BB
         bb.next()
