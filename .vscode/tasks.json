@@ -2,7 +2,7 @@
     "tasks": [
         {
             "type": "cppbuild",
-            "label": "build bb.dbg",
+            "label": "build=release bb.bin",
             "command": "/usr/bin/g++",
             "args": [
                 "-fdiagnostics-color=always",

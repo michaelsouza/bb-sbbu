@@ -10,13 +10,34 @@ parallel -j 10 < callBB.sh
 
 # Development tools
 
-- Intel oneAPI Base Toolkit
+- Visual Studio Code (IDE)
+- GCC, the GNU Compiler Collection (compiler)
+- GoogleTest (xUnit test framework)
+- CMake (Build Framework)
+- Git (control version)
 
-# Gtest
+# Build Release version
 
-Build in Debug mode with all optimization turned off
+Configure the build in Release mode.
 ```
-cmake .. -DCMAKE_BUILD_TYPE=DEBUG -DCMAKE_C_FLAGS_DEBUG="-g -O0" -DCMAKE_CXX_FLAGS_DEBUG="-g -O0"
+> mkdir build
+
+> cmake .. -DCMAKE_BUILD_TYPE=RELEASE
+
+> make
+```
+
+# Build Debug version and run the unit tests
+
+Configure the build in Debug mode with all optimizations turned off.
+```
+> mkdir build
+
+> cmake .. -DCMAKE_BUILD_TYPE=DEBUG -DCMAKE_C_FLAGS_DEBUG="-g -O0" -DCMAKE_CXX_FLAGS_DEBUG="-g -O0"
+```
+Run the unit tests.
+```
+> make; ctest
 ```
 
 # References

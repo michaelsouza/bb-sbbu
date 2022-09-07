@@ -17,14 +17,19 @@ FetchContent_MakeAvailable(googletest)
 enable_testing()
 
 add_executable(
-    tests.dbg
+    tests.bin
     codes/tests.cpp
 )
 
 target_link_libraries(
-    tests.dbg
+    tests.bin
     GTest::gtest_main
 )
 
+add_executable(
+  bb.bin
+  codes/bb.cpp
+)
+
 include(GoogleTest)
-gtest_discover_tests(tests.dbg)
+gtest_discover_tests(tests.bin)

@@ -7,6 +7,7 @@
 #include <map>
 #include <regex>
 #include <set>
+#include <sstream>
 #include <stdarg.h>
 #include <stdexcept>
 #include <string>
@@ -99,7 +100,7 @@ public:
    }
 
    bool check_cover( NMRSegment& s ) {
-      return (m_i + 3 <= s.m_i) && (s.m_j <= m_j);
+      return ( m_i + 3 <= s.m_i ) && ( s.m_j <= m_j );
    }
 
    static void resetEID() {
@@ -123,7 +124,7 @@ private:
 
       // E[i]: set of the eid's of the edges covering atom 'i'
       std::map<int, std::set<int>> E;
-      for ( auto&& i : I ) E[i] = {};
+      for ( auto&& i : I ) E[ i ] = {};
 
       for ( auto&& e : m_pruneEdges )
          for ( int i = e.m_i + 3; i <= e.m_j; i++ )
@@ -170,15 +171,27 @@ public:
 
    NMR( std::string fnmr ) {
       m_fnmr = fnmr;
-      
+
+      NMREdge::resetEID(); // set EID=0
+
       // open fnmr file
       std::ifstream fid( fnmr.c_str() );
-      if(!fid.good()) throw std::runtime_error("Could not open fnmr file.");
+      if ( !fid.good() )
+         throw std::runtime_error( "Could not open fnmr file." );
 
+      // read fnmr file row by row
       int i, j;
-      NMREdge::resetEID(); // set EID=0
-      while ( fid >> i >> j ) m_edges.push_back( NMREdge( i, j ) );
-      
+      std::string row;
+      while ( std::getline( fid, row ) ) {
+         std::stringstream ss( row );
+         ss >> i;
+         ss >> j;
+         m_edges.push_back( NMREdge( i, j ) );
+      }
+
+      if ( m_edges.size() == 0 )
+         throw std::runtime_error( "No edges found." );
+
       m_nnodes = 0;
       for ( auto&& e : m_edges ) {
          if ( m_nnodes < e.m_j ) m_nnodes = e.m_j;
@@ -192,13 +205,13 @@ public:
 weight_t order_cost( std::vector<int>& order, std::map<int, NMREdge>& E, std::map<int, NMRSegment>& S, weight_t costUB = WEIGHT_MAX ) {
    weight_t total_cost = 0; // total cost
    // sid is added to B by the first edge that covers it.
-   std::set<int> B;   
+   std::set<int> B;
    for ( auto&& eid : order ) {
       weight_t edge_cost = 1;
       const auto& e = E[ eid ];
       for ( auto&& sid : e.m_sid ) {
          // sid not in S, it does not need to be covered
-         if( S.find( sid ) == S.end() ) continue;
+         if ( S.find( sid ) == S.end() ) continue;
          // sid already covered
          if ( B.find( sid ) != B.end() ) continue;
          // covering sid
@@ -304,33 +317,60 @@ public:
       return x;
    }
 
-   BSTNode* min( BSTNode* x = nullptr ) {
+   BSTNode* minNode( BSTNode* x = nullptr ) {
+      if ( m_size == 0 ) return nullptr;
       if ( x == nullptr ) x = m_root;
       while ( x->m_lft != nullptr ) x = x->m_lft;
       return x;
    }
 
-   BSTNode* max() {
-      BSTNode* x = m_root;
+   int minKey( bool deleteNode = false ) {
+      auto x = minNode();
+      if ( x == nullptr ) return -1;
+      auto key = x->m_key;
+      if ( deleteNode ) rem( x, true );
+      return key;
+   }
+
+   BSTNode* maxNode( BSTNode* x = nullptr ) {
+      if ( m_size == 0 ) return nullptr;
+      if ( x == nullptr ) x = m_root;
       while ( x->m_rht != nullptr ) x = x->m_rht;
       return x;
    }
 
-   BSTNode* minGT( int key ) {
-      BSTNode* u = nullptr;
+   int maxKey( bool deleteNode = false ) {
+      auto x = maxNode();
+      if ( x == nullptr ) return -1;
+      auto key = x->m_key;
+      if ( deleteNode ) rem( x, true );
+      return key;
+   }
+
+   BSTNode* minNodeGT( int key ) {
+      BSTNode* z = nullptr;
       BSTNode* x = m_root;
       int minKey = INT_MAX;
       while ( x != nullptr ) {
          if ( x->m_key > key ) {
             minKey = key;
-            u = x;
+            z = x;
             x = x->m_lft;
          }
          else { // x->m_key >= key
             x = x->m_rht;
          }
       }
-      return u;
+      return z;
+   }
+
+   int minKeyGT( int key, bool deleteNode = false ) {
+      auto x = minNodeGT( key );
+      // return an invalid key
+      if ( x == nullptr ) return -1;
+      key = x->m_key;
+      if ( deleteNode ) rem( x, true );
+      return key;
    }
 
    void add( int key ) {
@@ -368,7 +408,8 @@ public:
          v->m_p = u->m_p;
    }
 
-   void rem( BSTNode* z, bool delz = false ) {
+   void rem( BSTNode* z, bool deleteNode = false ) {
+      if ( z == nullptr ) return;
       --m_size;
       if ( z->m_lft == nullptr ) { // (possibly) only rht child
          transplant( z, z->m_rht );
@@ -377,7 +418,7 @@ public:
          transplant( z, z->m_lft );
       }
       else {
-         auto y = min();
+         auto y = minNode( z->m_rht );
          if ( y != z->m_rht ) {
             transplant( y, y->m_rht );
             y->m_rht = z->m_rht;
@@ -387,12 +428,21 @@ public:
          y->m_lft = z->m_lft;
          y->m_lft->m_p = y;
       }
-      if ( delz )
+      if ( deleteNode )
          delete z;
    }
 };
 
 class BBPerm {
+private:
+   void setMembers() {
+      m_state = 'n';
+      m_idx = -1;
+      m_order.resize( m_keys.size() );
+      for ( auto&& key : m_keys )
+         m_bst.add( key );
+   }
+
 public:
    std::vector<int> m_keys;
    // current order
@@ -406,16 +456,12 @@ public:
    BBPerm( std::vector<NMREdge>& E ) {
       for ( auto&& e : E )
          m_keys.push_back( e.m_eid );
-      m_state = 'n';
-      m_idx = -1;
-      m_order.resize( m_keys.size() );
+      setMembers();
    }
 
    BBPerm( std::vector<int>& keys ) {
       std::copy( keys.begin(), keys.end(), m_keys.begin() );
-      m_state = 'n';
-      m_idx = -1;
-      m_order.resize( m_keys.size() );
+      setMembers();
    }
 
    /**
@@ -427,11 +473,9 @@ public:
    int next() {
       if ( m_state == 'n' ) {
          if ( m_bst.m_size > 0 ) {
-            BSTNode* emin = m_bst.min();
-            int key = emin->m_key;
-            m_bst.rem( emin );
-            m_order[ ++m_idx ] = emin->m_key;
-            return emin->m_key;
+            auto key = m_bst.minKey( true );
+            m_order[ ++m_idx ] = key;
+            return key;
          }
          m_state = 'p';
          return next();
@@ -440,15 +484,14 @@ public:
       if ( m_idx == -1 )
          return -1;
 
-      int key = m_order[ m_idx ];
-      BSTNode* emin = m_bst.minGT( key );
-      m_bst.add( key );
-      if ( emin == nullptr ) {
-         m_order[ m_idx ] = -1;
+      const auto keyOld = m_order[ m_idx ];
+      auto key = m_bst.minKeyGT( keyOld, true );
+      m_bst.add( keyOld );
+      m_order[ m_idx ] = key;
+      if ( key < 0 ) {
          --m_idx;
          return next();
       }
-      m_order[ m_idx ] = emin->m_key;
       m_state = 'n';
       return key;
    }
@@ -460,14 +503,16 @@ public:
 
 class BB {
 public:
+   int m_idx;
    NMR& m_nmr;
+   BBPerm m_perm;
+   bool m_timeout;
+   size_t m_nedges;
+   std::vector<int> m_order;
    std::map<int, NMREdge>& m_E;
    std::map<int, NMRSegment>& m_S;
-   size_t m_nedges;
-   int m_idx;
-   BBPerm m_perm;
-   std::vector<int> m_order;
-   bool m_timeout;
+   // array of the cost added by each eid
+   std::vector<weight_t> m_c;
 
    BB( NMR& nmr )
        : m_nmr( nmr ), m_E( nmr.m_E ), m_S( nmr.m_S ), m_perm( nmr.m_pruneEdges ) {
@@ -475,6 +520,8 @@ public:
       m_nedges = m_E.size();
       m_order.resize( m_nedges );
       m_timeout = false;
+      m_c.resize( m_nedges );
+      std::fill( m_c.begin(), m_c.end(), 0 );
    }
 
    /**
@@ -484,24 +531,19 @@ public:
     * @param U set of available segments
     * @return weight_t
     */
-   weight_t order_rem( std::map<int, int>& C, std::set<int>& U ) {
-      auto idx = m_idx;
+   weight_t order_rem( std::vector<int>& C, std::set<int>& U ) {
       weight_t total_cost = 0;
-      while ( idx >= m_perm.m_idx && m_perm.m_order[ idx ] != m_order[ idx ] ) {
-         auto eid = m_order[ idx ];
+      while ( m_idx >= m_perm.m_idx && m_perm.m_order[ m_idx ] != m_order[ m_idx ] ) {
+         auto eid = m_order[ m_idx ];
          // set invalid value
-         m_order[ idx ] = -1;
-         weight_t eid_cost = 1;
-         for ( auto&& sid : m_E[ eid ].m_sid ) {
+         m_order[ m_idx ] = -1;
+         total_cost += m_c[ m_idx ];
+         const auto& e = m_E[ eid ];
+         for ( auto&& sid : e.m_sid ) {
             --C[ sid ];
-            if ( C[ sid ] == 0 ) {
-               eid_cost *= m_S[ sid ].m_weight;
-               U.insert( sid );
-            }
+            if ( C[ sid ] == 0 ) U.insert( sid );
          }
-         if ( eid_cost > 1 )
-            total_cost += eid_cost;
-         --idx;
+         --m_idx;
       }
       return total_cost;
    }
@@ -514,40 +556,48 @@ public:
     * @param U set of the uncovered segments.
     * @return weight_t
     */
-   weight_t order_add( int eid, std::map<int, int>& C, std::set<int>& U ) {
-      m_order[ m_perm.m_idx ] = eid;
+   weight_t order_add( int eid, std::vector<int>& C, std::set<int>& U ) {
+      m_order[ ++m_idx ] = eid;
       weight_t eid_cost = 1;
-      for ( auto&& sid : m_E[ eid ].m_sid ) {
+      const auto& e = m_E[ eid ];
+      for ( auto&& sid : e.m_sid ) {
          ++C[ sid ];
          // the current eid is the only one covering the sid
          if ( C[ sid ] == 1 ) {
-            eid_cost *= m_S[ sid ].m_weight;
+            const auto& s = m_S[ sid ];
+            eid_cost *= s.m_weight;
             U.erase( sid );
          }
       }
-      return eid_cost > 1 ? eid_cost : 0;
+      eid_cost = eid_cost > 1 ? eid_cost : 0;
+      m_c[ m_idx ] = eid_cost;
+      return eid_cost;
    }
 
-   weight_t solve( bool unpickling = false, float tmax = 60 ) {
+   weight_t solve( float tmax = 3600 ) {
       auto tic = TIME_NOW();
       weight_t costUB = WEIGHT_MAX;
+      std::fill( m_order.begin(), m_order.end(), -1 );
       std::vector<int> orderOPT;
-      if ( unpickling )
-         throw std::invalid_argument( "not implemented." );
-      else // initial optimal solution
-         costUB = order_sbbu( m_nmr, m_order );
+      costUB = order_sbbu( m_nmr, orderOPT );
 
       // C[sid] : number of edges already included in the order that cover segment sid
-      std::map<int, int> C;
-      for ( auto&& kv : m_S ) C[ kv.first ] = 0;
+      std::vector<int> C( m_S.size() + 1 ); // the segments are one-based
+      std::fill( C.begin(), C.end(), 0 );
 
       // U: set of the uncovered segments
       std::set<int> U;
-      for ( auto&& kv : C ) U.insert( kv.first );
+      for ( auto&& kv : m_S )
+         U.insert( kv.first );
 
       // first cost_relax
       auto costLB = cost_relax( U, m_S );
-      if ( costLB == costUB ) return costUB;
+
+      // solution found
+      if ( costLB == costUB ) {
+         std::copy( orderOPT.begin(), orderOPT.end(), m_order.begin() );
+         return costUB;
+      }
 
       weight_t partial_cost = 0;
       int eid = m_perm.next();
@@ -555,14 +605,12 @@ public:
       while ( eid > -1 ) {
          partial_cost -= order_rem( C, U );
          partial_cost += order_add( eid, C, U );
-         m_idx = m_perm.m_idx;
          // when U is empty, the partial_cost is total.
          costLB = partial_cost + cost_relax( U, m_S );
          auto toc = ETS( tic );
          if ( toc > tmax ) {
             m_timeout = true;
             printf( "> timeoutBB %ld seconds\n", toc );
-            // m_dump(C, U)
             break;
          }
          if ( costLB >= costUB )
@@ -571,6 +619,8 @@ public:
             costUB = costLB;
             std::copy( m_order.begin(), m_order.end(), orderOPT.begin() );
          }
+         //TODO Jump permutation when U is empty
+         //TODO Consider only the eid's covering the sid's on U
          eid = m_perm.next();
       }
       std::copy( orderOPT.begin(), orderOPT.end(), m_order.begin() );
@@ -578,14 +628,12 @@ public:
    }
 };
 
-bool exists( std::string fname )
-{
+bool exists( std::string fname ) {
    std::ifstream fid( fname.c_str() );
    return fid.good();
 }
 
-void write_log( FILE* fid, const char* fmt, ... )
-{
+void write_log( FILE* fid, const char* fmt, ... ) {
    va_list args;
    va_start( args, fmt );
    vprintf( fmt, args );
@@ -593,28 +641,28 @@ void write_log( FILE* fid, const char* fmt, ... )
    va_end( args );
 }
 
-int call_solvers( int argc, char* argv[] )
-{
+int call_solvers( int argc, char* argv[] ) {
    std::string fnmr = "/home/michael/gitrepos/bb-sbbu/DATA_TEST/testC.nmr";
-   int tmax = 1;
+   int tmax = 3600;
    bool clean_log = false;
-   for ( int i = 0; i < argc; ++i )
-   {
+   for ( int i = 0; i < argc; ++i ) {
       auto arg = argv[ i ];
-      if ( arg == "-fnmr" ) fnmr = argv[ i + 1 ];
-      if ( arg == "-tmax" ) tmax = atof( argv[ i + 1 ] );
-      if ( arg == "-clean_log" ) clean_log = true;
+      if ( strcmp( arg, "-fnmr" ) == 0 ) fnmr = argv[ i + 1 ];
+      if ( strcmp( arg, "-tmax" ) == 0 ) tmax = atof( argv[ i + 1 ] );
+      if ( strcmp( arg, "-clean_log" ) == 0 ) clean_log = true;
    }
 
    auto flog = std::regex_replace( fnmr, std::regex( ".nmr" ), ".log" );
    // check if already has a log file
-   if ( !clean_log && exists( flog ) )
-   {
+   if ( !clean_log && exists( flog ) ) {
       printf( "> skip (already solved) %s\n", fnmr.c_str() );
       return EXIT_SUCCESS;
    }
    // create log file
    FILE* fid = fopen( flog.c_str(), "w" );
+   if ( fid == nullptr )
+      throw std::runtime_error( "Could create the log file." );
+
    write_log( fid, "> fnmr %s\n", fnmr.c_str() );
 
    // read instance
@@ -622,6 +670,7 @@ int call_solvers( int argc, char* argv[] )
    auto& E = nmr.m_E;
    auto& S = nmr.m_S;
 
+   write_log( fid, "> clean_log ......... %s\n", clean_log ? "true" : "false" );
    write_log( fid, "> tmax (secs) ....... %g\n", tmax );
    write_log( fid, "> nnodes ............ %d\n", nmr.m_nnodes );
    write_log( fid, "> lenE .............. %d\n", E.size() );

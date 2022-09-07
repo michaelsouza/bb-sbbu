@@ -4,30 +4,58 @@
     // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
     "version": "0.2.0",
     "configurations": [
-    {
-        "name": "(gdb) tests.dbg",
-        "type": "cppdbg",
-        "request": "launch",
-        "program": "${workspaceFolder}/build/tests.dbg",
-        "args": [],
-        "stopAtEntry": true,
-        "cwd": "${workspaceFolder}/build/",
-        "environment": [],
-        "externalConsole": false,
-        "MIMode": "gdb",
-        "setupCommands": [
-            {
-                "description": "Enable pretty-printing for gdb",
-                "text": "-enable-pretty-printing",
-                "ignoreFailures": true
-            },
-            {
-                "description":  "Set Disassembly Flavor to Intel",
-                "text": "-gdb-set disassembly-flavor intel",
-                "ignoreFailures": true
-            }
-        ]
-    },
+        {
+            "name": "(gdb) bb.bin",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/bb.bin",
+            "args": [
+                "-fnmr",
+                "../DATA_EPSD_00_DMAX_50/1adx.nmr",
+                "-clean_log"
+            ],
+            "stopAtEntry": true,
+            "cwd": "${workspaceFolder}/build/",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "gdb",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                },
+                {
+                    "description": "Set Disassembly Flavor to Intel",
+                    "text": "-gdb-set disassembly-flavor intel",
+                    "ignoreFailures": true
+                }
+            ]
+        },
+        {
+            "name": "(gdb) tests.bin",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/tests.bin",
+            "args": [],
+            "stopAtEntry": true,
+            "cwd": "${workspaceFolder}/build/",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "gdb",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                },
+                {
+                    "description": "Set Disassembly Flavor to Intel",
+                    "text": "-gdb-set disassembly-flavor intel",
+                    "ignoreFailures": true
+                }
+            ]
+        },
         {
             "name": "(gdb) codes/bb.py",
             "type": "python",
@@ -48,7 +76,7 @@
             "type": "python",
             "request": "launch",
             "program": "codes/tests.py",
-            "console": "integratedTerminal",            
+            "console": "integratedTerminal",
             "justMyCode": true
         }
     ]

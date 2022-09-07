@@ -1,12 +1,7 @@
 #include "bb.h"
 #include "gtest/gtest.h"
 
-class NMRTest : public ::testing::Test {
-protected:
-   void SetUp() override {}
-};
-
-TEST_F( NMRTest, TestA ) {
+TEST( NMR, testA ) {
    NMR nmr( "../DATA_TEST/testA.nmr" );
 
    std::vector<NMRSegment> segments;
@@ -20,23 +15,17 @@ TEST_F( NMRTest, TestA ) {
 
    auto& E = nmr.m_E;
    auto& S = nmr.m_S;
-   for (auto &&kv : E)
-   {
-      auto eid = kv.first;
-      auto& e = kv.second;
-      for( auto &&sid : e.m_sid)
-      {
-         auto &s = S[sid];
-         EXPECT_LE(e.m_i + 3, s.m_i);
-         EXPECT_LE(e.m_i + 3, s.m_j);
-         EXPECT_LE(s.m_i, e.m_j);
-         EXPECT_LE(s.m_j, e.m_j);
-      }
-   }
-   
+
+   std::set<int> e1_sid( { 1, 2 } );
+   std::set<int> e2_sid( { 2, 3 } );
+   std::set<int> e3_sid( { 4 } );
+
+   EXPECT_EQ( E[ 1 ].m_sid, e1_sid );
+   EXPECT_EQ( E[ 2 ].m_sid, e2_sid );
+   EXPECT_EQ( E[ 3 ].m_sid, e3_sid );
 }
 
-TEST( order_sbbu, SolveA ) {
+TEST( order_sbbu, testA ) {
    NMR nmr( "../DATA_TEST/testA.nmr" );
    std::vector<int> orderSBBU;
    auto costSBBU = order_sbbu( nmr, orderSBBU );
@@ -44,22 +33,77 @@ TEST( order_sbbu, SolveA ) {
    EXPECT_EQ( orderSBBU, order );
 }
 
-class BBTest : public ::testing::Test {
-protected:
-   void SetUp() override {}
-};
-
-TEST_F( BBTest, SolveA ) {
+TEST( order_brute, testA ) {
    NMR nmr( "../DATA_TEST/testA.nmr" );
-   BB bb( nmr );
-   auto costBB = bb.solve();
-   EXPECT_EQ( costBB, 168 );
-   int id1, id2;
-   for ( int i = 0; i < bb.m_order.size(); i++ ) {
-      auto eid = bb.m_order[ i ];
-      if ( eid == 1 ) id1 = i;
-      if ( eid == 2 ) id2 = i;
-   }
+   std::vector<int> orderOPT;
+   auto costOPT = order_brute( nmr, orderOPT );
+   EXPECT_EQ( costOPT, 168 );
+}
 
-   EXPECT_LT( id1, id2 );
+TEST( order_brute, testB ) {
+   NMR nmr( "../DATA_TEST/testB.nmr" );
+   std::vector<int> orderOPT;
+   auto costOPT = order_brute( nmr, orderOPT );
+   std::vector<int> order( { 3, 2, 1 } );
+   EXPECT_EQ( costOPT, 24 );
+   EXPECT_EQ( orderOPT, order );
+}
+
+TEST( BST, test ) {
+   BST b;
+   for ( int i = 1; i <= 10; ++i )
+      b.add( i );
+   int key = b.minKey( true );
+   EXPECT_EQ( key, 1 );
+   key = b.minKey( true );
+   EXPECT_EQ( key, 2 );
+   key = b.minKey( true );
+   EXPECT_EQ( key, 3 );
+   key = b.minKey( true );
+   EXPECT_EQ( key, 4 );
+   key = b.minKey( true );
+   EXPECT_EQ( key, 5 );
+   EXPECT_EQ( b.m_size, 5 );
+   b.add( 1 );
+   b.add( 2 );
+   EXPECT_EQ( b.m_size, 7 );
+   key = b.minKeyGT( 2, true );
+   EXPECT_EQ( key, 6 );
+   EXPECT_EQ( b.m_size, 6 );
+   key = b.minKey( true );
+   EXPECT_EQ( key, 1 );
+   EXPECT_EQ( b.m_size, 5 );
+   key = b.minKey( true );
+   EXPECT_EQ( key, 2 );
+   key = b.minKeyGT( 8, true );
+   EXPECT_EQ( key, 9 );
+   key = b.minKeyGT( 10, true );
+   EXPECT_EQ( key, -1 );
+   key = b.minKey( true );
+   EXPECT_EQ( key, 7 );
+   key = b.minKeyGT( 7, true );
+   EXPECT_EQ( key, 8 );
+   key = b.minKey( true );
+   EXPECT_EQ( key, 10 );
+   EXPECT_EQ( b.m_size, 0 );
+   key = b.minKey( true );
+   EXPECT_EQ( key, -1 );
+   EXPECT_EQ( b.m_size, 0 );
+}
+
+void compareBruteWithBB( std::string fnmr ) {
+   NMR nmr( fnmr );
+   BB bb( nmr );
+   std::vector<int> orderOPT;
+   auto costOPT = order_brute( nmr, orderOPT );
+   auto costBB = bb.solve();
+   EXPECT_EQ( costOPT, costBB );
+}
+
+TEST( BB, testCostOptimality ) {
+   compareBruteWithBB( "../DATA_TEST/testA.nmr" );
+   compareBruteWithBB( "../DATA_TEST/testB.nmr" );
+   compareBruteWithBB( "../DATA_TEST/testC.nmr" );
+   compareBruteWithBB( "../DATA_TEST/testD.nmr" );
+   compareBruteWithBB( "../DATA_TEST/testE.nmr" );
 }

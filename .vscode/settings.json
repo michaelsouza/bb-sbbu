@@ -35,6 +35,10 @@
         "typeinfo": "cpp",
         "utility": "cpp",
         "regex": "cpp",
-        "chrono": "cpp"
+        "chrono": "cpp",
+        "bit": "cpp",
+        "random": "cpp",
+        "numeric": "cpp",
+        "semaphore": "cpp"
     }
 }
