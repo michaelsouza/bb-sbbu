@@ -39,6 +39,8 @@
         "bit": "cpp",
         "random": "cpp",
         "numeric": "cpp",
-        "semaphore": "cpp"
+        "semaphore": "cpp",
+        "bitset": "cpp",
+        "algorithm": "cpp"
     }
 }

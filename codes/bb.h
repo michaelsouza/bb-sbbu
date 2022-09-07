@@ -236,9 +236,11 @@ weight_t order_sbbu( NMR& nmr, std::vector<int>& order ) {
 
    std::sort( order.begin(), order.end(),
        [ &E ]( const int& eidA, const int& eidB ) -> bool {
-          if ( E[ eidA ].m_j == E[ eidB ].m_j )
-             return E[ eidA ].m_i < E[ eidB ].m_j;
-          return E[ eidA ].m_j < E[ eidB ].m_j;
+         const auto& eA = E[ eidA ];
+         const auto& eB = E[ eidB ];
+          if ( eA.m_j == eB.m_j )
+             return eA.m_i < eB.m_i;
+          return eA.m_j < eB.m_j;
        } );
 
    return order_cost( order, E, nmr.m_S );
@@ -531,7 +533,7 @@ public:
     * @param U set of available segments
     * @return weight_t
     */
-   weight_t order_rem( std::vector<int>& C, std::set<int>& U ) {
+   weight_t order_rem( std::vector<int>& C, std::set<int>& U, weight_t& costRLX ) {
       weight_t total_cost = 0;
       while ( m_idx >= m_perm.m_idx && m_perm.m_order[ m_idx ] != m_order[ m_idx ] ) {
          auto eid = m_order[ m_idx ];
@@ -541,7 +543,12 @@ public:
          const auto& e = m_E[ eid ];
          for ( auto&& sid : e.m_sid ) {
             --C[ sid ];
-            if ( C[ sid ] == 0 ) U.insert( sid );
+            if ( C[ sid ] == 0 ) {
+               U.insert( sid );
+               const auto s = m_S[ sid ];
+               // increment the relaxed cost
+               costRLX += s.m_weight;
+            }
          }
          --m_idx;
       }
@@ -556,7 +563,7 @@ public:
     * @param U set of the uncovered segments.
     * @return weight_t
     */
-   weight_t order_add( int eid, std::vector<int>& C, std::set<int>& U ) {
+   weight_t order_add( int eid, std::vector<int>& C, std::set<int>& U, weight_t& costRLX ) {
       m_order[ ++m_idx ] = eid;
       weight_t eid_cost = 1;
       const auto& e = m_E[ eid ];
@@ -567,6 +574,8 @@ public:
             const auto& s = m_S[ sid ];
             eid_cost *= s.m_weight;
             U.erase( sid );
+            // reduce the relaxed cost
+            costRLX -= s.m_weight;
          }
       }
       eid_cost = eid_cost > 1 ? eid_cost : 0;
@@ -574,7 +583,7 @@ public:
       return eid_cost;
    }
 
-   weight_t solve( float tmax = 3600 ) {
+   weight_t solve( size_t tmax = 3600 ) {
       auto tic = TIME_NOW();
       weight_t costUB = WEIGHT_MAX;
       std::fill( m_order.begin(), m_order.end(), -1 );
@@ -591,38 +600,69 @@ public:
          U.insert( kv.first );
 
       // first cost_relax
-      auto costLB = cost_relax( U, m_S );
+      auto costRELAX = cost_relax( U, m_S );
 
       // solution found
-      if ( costLB == costUB ) {
+      if ( costRELAX == costUB ) {
          std::copy( orderOPT.begin(), orderOPT.end(), m_order.begin() );
          return costUB;
       }
 
-      weight_t partial_cost = 0;
+      // costACC: cost accumulated to the current idx
+      weight_t costACC = 0;      
+      // costRLX: LB of the cost to cover the remaning segments
+      // When costRLX == 0, there is no remaining segments to be covered
+      weight_t costRLX = costRELAX;
+      // costLB = costACC + costRLX
+      weight_t costLB = costACC + costRLX;
+      // eid_cost: cost of the last edge added
+      weight_t costEID = costACC + costRLX;
+
       int eid = m_perm.next();
       // loop through all permutations
       while ( eid > -1 ) {
-         partial_cost -= order_rem( C, U );
-         partial_cost += order_add( eid, C, U );
-         // when U is empty, the partial_cost is total.
-         costLB = partial_cost + cost_relax( U, m_S );
          auto toc = ETS( tic );
          if ( toc > tmax ) {
             m_timeout = true;
             printf( "> timeoutBB %ld seconds\n", toc );
             break;
          }
-         if ( costLB >= costUB )
-            m_perm.prune();
-         else if ( m_perm.m_idx == ( m_nedges - 1 ) && costLB < costUB ) {
+
+         costACC -= order_rem( C, U, costRLX );
+         costEID = order_add( eid, C, U, costRLX );
+
+         costACC += costEID;
+         costLB = costACC + costRLX;
+         
+         // sanity check (something went wrong)
+         if( costLB < costRELAX ){
             costUB = costLB;
             std::copy( m_order.begin(), m_order.end(), orderOPT.begin() );
+            break;
          }
-         //TODO Jump permutation when U is empty
-         //TODO Consider only the eid's covering the sid's on U
+
+         // update solution
+         if ( ( costRLX == 0 ) && ( costLB < costUB ) ) {
+            costUB = costLB;
+            std::copy( m_order.begin(), m_order.end(), orderOPT.begin() );
+            if ( costRELAX >= costLB ) break;
+         }
+
+         // prune when
+         // 1) costLB > costUB: the prefix will not generate a improved solution
+         // 2) costRLX == 0: there is no remaining segment to be solved
+         // 3) costEID == 0: push the solved eid to the end of the permutation
+         if ( ( costLB > costUB ) || ( costRLX == 0 ) || ( costEID == 0 ) ) m_perm.prune();
+
+         // TODO Jump permutation when U is empty
+         // TODO Consider only the eid's covering the sid's on U
          eid = m_perm.next();
       }
+
+      // sanity check (something went wrong)
+      if ( costRELAX > costUB )
+         throw std::runtime_error( "Unfeasible cost found (costRELAX < costUB)." );
+
       std::copy( orderOPT.begin(), orderOPT.end(), m_order.begin() );
       return costUB;
    }
@@ -636,19 +676,24 @@ bool exists( std::string fname ) {
 void write_log( FILE* fid, const char* fmt, ... ) {
    va_list args;
    va_start( args, fmt );
-   vprintf( fmt, args );
-   vfprintf( fid, fmt, args );
+   vfprintf( fid, fmt, args );   
    va_end( args );
+
+   va_start( args, fmt );
+   vprintf( fmt, args );
+   va_end( args );
+
+   fflush(fid);
 }
 
 int call_solvers( int argc, char* argv[] ) {
    std::string fnmr = "/home/michael/gitrepos/bb-sbbu/DATA_TEST/testC.nmr";
-   int tmax = 3600;
+   size_t tmax = 3600;
    bool clean_log = false;
    for ( int i = 0; i < argc; ++i ) {
       auto arg = argv[ i ];
       if ( strcmp( arg, "-fnmr" ) == 0 ) fnmr = argv[ i + 1 ];
-      if ( strcmp( arg, "-tmax" ) == 0 ) tmax = atof( argv[ i + 1 ] );
+      if ( strcmp( arg, "-tmax" ) == 0 ) tmax = atoi( argv[ i + 1 ] );
       if ( strcmp( arg, "-clean_log" ) == 0 ) clean_log = true;
    }
 
@@ -670,8 +715,8 @@ int call_solvers( int argc, char* argv[] ) {
    auto& E = nmr.m_E;
    auto& S = nmr.m_S;
 
-   write_log( fid, "> clean_log ......... %s\n", clean_log ? "true" : "false" );
-   write_log( fid, "> tmax (secs) ....... %g\n", tmax );
+   write_log( fid, "> clean_log ......... %d\n", clean_log ? 1 : 0 );
+   write_log( fid, "> tmax (secs) ....... %ld\n", tmax );
    write_log( fid, "> nnodes ............ %d\n", nmr.m_nnodes );
    write_log( fid, "> lenE .............. %d\n", E.size() );
    write_log( fid, "> lenS .............. %d\n", S.size() );
@@ -688,16 +733,16 @@ int call_solvers( int argc, char* argv[] ) {
    auto costSBBU = order_sbbu( nmr, orderSBBU );
    auto toc = ETS( tic );
    write_log( fid, "> costSBBU .......... %d\n", costSBBU );
-   write_log( fid, "> timeSBBU (secs) ... %g\n", toc );
+   write_log( fid, "> timeSBBU (secs) ... %ld\n", toc );
 
    // call order_bb if needed
    BB bb( nmr );
    tic = TIME_NOW();
    auto costBB = bb.solve( tmax = tmax );
    toc = ETS( tic );
-   write_log( fid, "> timeoutBB ......... %s\n", bb.m_timeout ? "true" : "false" );
+   write_log( fid, "> timeoutBB ......... %d\n", bb.m_timeout ? 1 : 0 );
    write_log( fid, "> costBB ............ %d\n", costBB );
-   write_log( fid, "> timeBB (secs) ..... %g\n", toc );
+   write_log( fid, "> timeBB (secs) ..... %ld\n", toc );
 
    fclose( fid );
 

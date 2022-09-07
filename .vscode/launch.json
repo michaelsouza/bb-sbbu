@@ -10,12 +10,14 @@
             "request": "launch",
             "program": "${workspaceFolder}/build/bb.bin",
             "args": [
+                "-tmax",
+                "3600",
                 "-fnmr",
-                "../DATA_EPSD_00_DMAX_50/1adx.nmr",
+                "DATA_EPSD_00_DMAX_60/4wua.nmr",
                 "-clean_log"
             ],
             "stopAtEntry": true,
-            "cwd": "${workspaceFolder}/build/",
+            "cwd": "${workspaceFolder}",
             "environment": [],
             "externalConsole": false,
             "MIMode": "gdb",

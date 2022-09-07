@@ -13,15 +13,27 @@ for i, arg in enumerate(sys.argv):
     if arg == '-tmax':
         tmax = int(sys.argv[i+1])
 
-ARGV = []
+FNMR = []
 for wdir in sorted(WDIR):
     for fnmr in sorted(os.listdir(wdir)):
         if not fnmr.endswith('.nmr'):
             continue
-        arg = 'build/bb.bin -tmax %g -fnmr %s -clean_log' % (tmax, os.path.join(wdir, fnmr))
-        ARGV.append(arg)
-        
+        FNMR.append(os.path.join(wdir, fnmr))
+
+# sort by file size
+FNMR = sorted(FNMR, key=lambda fnmr: os.stat(fnmr).st_size)
+
+ARGV = []
+for fnmr in FNMR:
+    arg = './build/bb.bin -tmax %g -fnmr %s -clean_log' % (tmax, fnmr)
+    ARGV.append(arg)
+
+print('Saving args.txt')
+with open('args.txt', 'w') as fid:
+    for arg in ARGV:
+        fid.write('%s\n' % arg)
+
 pool = mp.Pool(mp.cpu_count() - 1)
-for _ in tqdm.tqdm(pool.map(os.system, ARGV), total=len(ARGV)):
+for _ in tqdm.tqdm(pool.imap_unordered(os.system, ARGV), total=len(ARGV)):
     pass
 pool.close()
