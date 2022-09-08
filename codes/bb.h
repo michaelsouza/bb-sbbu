@@ -119,6 +119,47 @@ public:
 int NMREdge::EID;
 
 class NMR {
+public:
+   std::string m_fnmr;
+   unsigned int m_nnodes;
+   std::vector<NMREdge> m_edges;
+   std::vector<NMREdge> m_pruneEdges;
+   std::vector<NMRSegment> m_segments;
+   std::map<int, NMREdge> m_E;
+   std::map<int, NMRSegment> m_S;
+
+   NMR( std::string fnmr ) {
+      m_fnmr = fnmr;
+
+      NMREdge::resetEID(); // set EID=0
+
+      // open fnmr file
+      std::ifstream fid( fnmr.c_str() );
+      if ( !fid.good() )
+         throw std::runtime_error( "Could not open fnmr file." );
+
+      // read fnmr file row by row
+      int i, j;
+      std::string row;
+      while ( std::getline( fid, row ) ) {
+         std::stringstream ss( row );
+         ss >> i;
+         ss >> j;
+         m_edges.push_back( NMREdge( i, j ) );
+      }
+
+      if ( m_edges.size() == 0 )
+         throw std::runtime_error( "No edges found." );
+
+      m_nnodes = 0;
+      for ( auto&& e : m_edges ) {
+         if ( m_nnodes < e.m_j ) m_nnodes = e.m_j;
+         if ( e.m_j > e.m_i + 3 ) m_pruneEdges.push_back( e );
+      }
+      setSegments();
+      setOrderingData();
+   }
+
 private:
    void setSegments() {
       NMRSegment::resetSID();
@@ -167,47 +208,6 @@ private:
       for ( auto&& s : m_segments )
          m_S[ s.m_sid ] = s;
    }
-
-public:
-   std::string m_fnmr;
-   unsigned int m_nnodes;
-   std::vector<NMREdge> m_edges;
-   std::vector<NMREdge> m_pruneEdges;
-   std::vector<NMRSegment> m_segments;
-   std::map<int, NMREdge> m_E;
-   std::map<int, NMRSegment> m_S;
-
-   NMR( std::string fnmr ) {
-      m_fnmr = fnmr;
-
-      NMREdge::resetEID(); // set EID=0
-
-      // open fnmr file
-      std::ifstream fid( fnmr.c_str() );
-      if ( !fid.good() )
-         throw std::runtime_error( "Could not open fnmr file." );
-
-      // read fnmr file row by row
-      int i, j;
-      std::string row;
-      while ( std::getline( fid, row ) ) {
-         std::stringstream ss( row );
-         ss >> i;
-         ss >> j;
-         m_edges.push_back( NMREdge( i, j ) );
-      }
-
-      if ( m_edges.size() == 0 )
-         throw std::runtime_error( "No edges found." );
-
-      m_nnodes = 0;
-      for ( auto&& e : m_edges ) {
-         if ( m_nnodes < e.m_j ) m_nnodes = e.m_j;
-         if ( e.m_j > e.m_i + 3 ) m_pruneEdges.push_back( e );
-      }
-      setSegments();
-      setOrderingData();
-   }
 };
 
 weight_t order_cost( std::vector<int>& order, std::map<int, NMREdge>& E, std::map<int, NMRSegment>& S, weight_t costUB = WEIGHT_MAX ) {
@@ -247,7 +247,7 @@ weight_t order_sbbu( NMR& nmr, std::vector<int>& order ) {
           const auto& eA = E[ eidA ];
           const auto& eB = E[ eidB ];
           if ( eA.m_j == eB.m_j )
-             return eA.m_i < eB.m_i;
+             return eA.m_i > eB.m_i;
           return eA.m_j < eB.m_j;
        } );
 
@@ -452,63 +452,119 @@ public:
 
 class BBP {
 public:
-   std::vector<int> m_keys;
    // current order
-   std::vector<int> m_o;
+   std::vector<int> m_ord;
    // index of the element last element inserted
    int m_idx;
    // n:normal, p:prune
    char m_state;
-   BST m_t;
-   // key can be added to m_o iff m_q[key] > 0
-   std::vector<int>& m_q;
-   // m_bt[key]: true iff key was inserted in m_t
-   std::vector<bool> m_bt;
-   // m_bo[key]: true iff key was inserted in m_o
-   std::vector<bool> m_bo;
+   // binary search tree of available eid's
+   BST m_bst;
+   // m_nUncSID[eid]: number of uncovered sid's associated to eid
+   std::vector<int> m_nUncSID;
+   // m_nCovEID[sid]: number of eid's in the order that cover sid
+   std::vector<int> m_nCovEID;
+   // m_binBst[eid]: true iff eid was inserted in m_t
+   std::vector<bool> m_binBst;
+   // m_binOrd[eid]: true iff eid was inserted in m_o
+   std::vector<bool> m_binOrd;
+   std::map<int, NMREdge>& m_E;
+   std::map<int, NMRSegment>& m_S;
 
-   BBP( std::vector<NMREdge>& E, std::vector<int>& q )
-       : m_q( q ) {
-      for ( auto&& e : E )
-         m_keys.push_back( e.m_eid );
+   BBP( std::map<int, NMREdge>& E, std::map<int, NMRSegment>& S )
+       : m_E( E ), m_S( S ) {
+      m_state = 'n';
+      m_idx = -1;
 
-      setMembers();
+      m_ord.resize( E.size() );
+      std::fill( m_ord.begin(), m_ord.end(), -1 );
+
+      int eidMax = 0;
+      for ( auto&& kv : E ) {
+         m_bst.add( kv.first );
+         if ( eidMax < kv.first ) eidMax = kv.first;
+      }
+
+      int sidMax = 0;
+      for ( auto&& kv : S )
+         if ( sidMax < kv.first ) sidMax = kv.first;
+
+      m_nUncSID.resize( eidMax + 1 );
+      for ( auto&& kv : E )
+         m_nUncSID[ kv.first ] = kv.second.m_SID.size();
+
+      m_nCovEID.resize( sidMax + 1 );
+      std::fill( m_nCovEID.begin(), m_nCovEID.end(), 0 );
+
+      m_binBst.resize( m_nUncSID.size() ); // key can be one-based
+      std::fill( m_binBst.begin(), m_binBst.end(), true );
+
+      m_binOrd.resize( m_binBst.size() );
+      std::fill( m_binOrd.begin(), m_binOrd.end(), false );
    }
 
-   BBP( std::vector<int>& keys, std::vector<int>& q )
-       : m_q( q ) {
-      std::copy( keys.begin(), keys.end(), m_keys.begin() );
-      setMembers();
-   }
-
-   inline int minKey() {
-      auto key = m_t.minKey( true );
-      m_bt[ key ] = false;
+   inline int eidMin() {
+      auto key = m_bst.minKey( true );
+      m_binBst[ key ] = false;
       return key;
    }
 
-   inline int minKeyGT( int key ) {
-      key = m_t.minKeyGT( key, true );
-      if( key > -1 ) m_bt[ key ] = false;
-      return key;
+   inline int eidMinGT( int eid ) {
+      eid = m_bst.minKeyGT( eid, true );
+      if ( eid > 0 ) m_binBst[ eid ] = false;
+      return eid;
    }
 
-   inline void add_key( int key ) {
-      if ( m_bt[ key ] || m_bo[ key ] ) return;
-      m_t.add( key );
-      m_bt[ key ] = true;
+   inline void addBst( int eid ) {
+      if ( eid > 0 && m_binOrd[ eid ] )
+         throw std::runtime_error( "Trying to add to m_bst an eid already in m_ord." );
+      if ( m_binBst[ eid ] )
+         throw std::runtime_error( "Trying to add to m_bst an eid already included." );
+      m_bst.add( eid );
+      m_binBst[ eid ] = true;
    }
 
-   inline void order_add( const int key ) {
-      m_o[ ++m_idx ] = key;
-      if ( key > -1 ) m_bo[ key ] = true;
+   inline void addOrd( const int eid ) {
+      if ( eid < 1 ) return;
+      if ( m_binBst[ eid ] )
+         throw std::runtime_error( "Trying to add to m_ord an eid already in m_bst." );
+      if ( m_binOrd[ eid ] )
+         throw std::runtime_error( "Trying to add to m_ord an eid already included." );
+
+      m_ord[ ++m_idx ] = eid;
+      m_binOrd[ eid ] = true;
+
+      const auto& e = m_E[ eid ];
+      for ( auto&& sid : e.m_SID ) {
+         const auto& s = m_S[ sid ];
+         ++m_nCovEID[ sid ];
+         if ( m_nCovEID[ sid ] == 1 )
+            for ( auto&& eid : s.m_EID ) --m_nUncSID[ eid ];
+      }
    }
 
-   inline int order_rem() {
-      const auto key = m_o[ m_idx ];
-      m_o[ m_idx-- ] = -1;
-      if ( key > -1 ) m_bo[ key ] = false;
-      return key;
+   inline int remOrd() {
+      const auto eid = m_ord[ m_idx ];
+      // set invalid value
+      m_ord[ m_idx-- ] = -1;
+      if ( eid < 1 ) return eid;
+
+      m_binOrd[ eid ] = false;
+      const auto e = m_E[ eid ];
+      for ( auto&& sid : e.m_SID ) {
+         const auto s = m_S[ sid ];
+         --m_nCovEID[ sid ];
+         // there is no eid in 'ord' covering sid
+         // add all eid associated to it in the 'bst'
+         if ( m_nCovEID[ sid ] == 0 ) {
+            for ( auto eid : s.m_EID ) {
+               ++m_nUncSID[ eid ];
+               if ( m_binBst[ eid ] == false && m_binOrd[ eid ] == false )
+                  addBst( eid );
+            }
+         }
+      }
+      return eid;
    }
 
    /**
@@ -517,54 +573,36 @@ public:
     *
     * @return int
     */
-   int next() {
+   int next( bool verbose = false ) {
       if ( m_state == 'n' ) {
-         if ( m_t.m_size > 0 ) {
-            const auto key = minKey();
-            order_add( key );
-            if ( key == -1 || m_q[ key ] > 0 ) return key;
+         const auto eid = eidMin();
+         // m_t is empty
+         if ( eid == -1 ) {
+            m_state = 'p';
+            return next();
          }
-         m_state = 'p';
-         return next();
+
+         // just drop key from m_t and call next
+         if ( m_nUncSID[ eid ] == 0 ) return next();
+
+         addOrd( eid );
+         return eid;
       }
 
       if ( m_idx == -1 ) return -1;
 
-      const auto keyOld = order_rem();
-      const auto key = minKeyGT( keyOld );
-      add_key( keyOld );
-      order_add( key );
-      if ( key < 0 ) {
-         --m_idx;
+      const auto eidOld = remOrd();
+      const auto eid = eidMinGT( eidOld );
+      if ( eid < 1 || m_nUncSID[ eid ] == 0 ) {
          return next();
       }
+      addOrd( eid );
       m_state = 'n';
-      return key;
+      return eid;
    }
 
    void prune() {
       m_state = 'p';
-   }
-
-private:
-   void setMembers() {
-      m_state = 'n';
-      m_idx = -1;
-      
-      m_o.resize( m_keys.size() );
-      std::fill( m_o.begin(), m_o.end(), -1 );
-      
-      int keyMax = 0;
-      for ( auto&& key : m_keys ) {
-         m_t.add( key );
-         if ( keyMax < key ) keyMax = key;
-      }
-
-      m_bt.resize( keyMax + 1 ); // key can be one-based
-      std::fill( m_bt.begin(), m_bt.end(), true );
-      
-      m_bo.resize( m_bt.size() );
-      std::fill( m_bo.begin(), m_bo.end(), false );
    }
 };
 
@@ -582,10 +620,9 @@ public:
    // m_c[i]: cost added by the i-th eid of the current order
    std::vector<weight_t> m_c;
    // m_q[eid]: number of uncovered sid's associated to eid
-   std::vector<int> m_q;
 
    BB( NMR& nmr )
-       : m_nmr( nmr ), m_E( nmr.m_E ), m_S( nmr.m_S ), m_p( nmr.m_pruneEdges, m_q ) {
+       : m_nmr( nmr ), m_E( nmr.m_E ), m_S( nmr.m_S ), m_p( nmr.m_E, nmr.m_S ) {
       m_idx = -1;
       m_nedges = m_E.size();
       m_order.resize( m_nedges );
@@ -593,12 +630,6 @@ public:
       // init c *****************
       m_c.resize( m_nedges );
       std::fill( m_c.begin(), m_c.end(), 0 );
-      // init q *****************
-      // note that the eid's are one-based
-      int eidMax = 0;
-      for ( auto&& kv : m_E )
-         if ( eidMax < kv.first ) eidMax = kv.first;
-      m_q.resize( eidMax + 1 );
    }
 
    /**
@@ -610,7 +641,7 @@ public:
     */
    weight_t order_rem( std::vector<int>& C, weight_t& costRLX ) {
       weight_t total_cost = 0;
-      while ( m_idx >= m_p.m_idx && m_p.m_o[ m_idx ] != m_order[ m_idx ] ) {
+      while ( m_idx >= m_p.m_idx && m_p.m_ord[ m_idx ] != m_order[ m_idx ] ) {
          auto eid = m_order[ m_idx ];
          // set invalid value
          m_order[ m_idx ] = -1;
@@ -620,11 +651,6 @@ public:
             --C[ sid ];
             if ( C[ sid ] == 0 ) {
                const auto s = m_S[ sid ];
-               // increase m_q
-               for ( auto&& eid : s.m_EID ) {
-                  ++m_q[ eid ];
-                  if ( m_q[ eid ] == 1 ) m_p.add_key( eid );
-               }
                // increment the relaxed cost
                costRLX += s.m_weight;
             }
@@ -652,9 +678,6 @@ public:
          if ( C[ sid ] == 1 ) {
             const auto& s = m_S[ sid ];
             eid_cost *= s.m_weight;
-            // decrease m_q
-            for ( auto&& eid : s.m_EID )
-               --m_q[ eid ];
             // reduce the relaxed cost
             costRLX -= s.m_weight;
          }
@@ -664,7 +687,8 @@ public:
       return eid_cost;
    }
 
-   weight_t solve( size_t tmax = 3600 ) {
+   weight_t solve( size_t tmax = 3600, bool verbose = false ) {
+      if ( verbose ) printf( "\n\nsolving %s\n", m_nmr.m_fnmr.c_str() );
       m_niters = 0;
       auto tic = TIME_NOW();
       weight_t costUB = WEIGHT_MAX;
@@ -673,10 +697,6 @@ public:
 
       // init m_order
       std::fill( m_order.begin(), m_order.end(), -1 );
-
-      // init q
-      for ( auto&& kv : m_E )
-         m_q[ kv.first ] = kv.second.m_SID.size();
 
       // C[sid] : number of edges already included in the order that cover segment sid
       std::vector<int> C( m_S.size() + 1 ); // the segments are one-based
@@ -718,35 +738,35 @@ public:
          costACC += costEID;
          costLB = costACC + costRLX;
 
-         // sanity check (something went wrong)
-         if ( costLB < costRELAX ) {
-            costUB = costLB;
-            std::copy( m_order.begin(), m_order.end(), orderOPT.begin() );
-            break;
+         if ( verbose ) {
+            printf( "UB:%8ld, LB:%8ld, CE:%8ld, AC:%8ld, RL:%8ld, ", costUB, costLB, costEID, costACC, costRLX );
+            printf( " o:[" );
+            for ( int i = 0; i <= m_idx; ++i )
+               printf( "%d, ", m_order[ i ] );
+            printf( "]\n" );
          }
+
+         // sanity check (something went wrong)
+         if ( costLB < costRELAX )
+            throw std::runtime_error( "Impossible lower bound (costLB < costRELAX)." );
 
          // update solution
          if ( ( costRLX == 0 ) && ( costLB < costUB ) ) {
             costUB = costLB;
             std::copy( m_order.begin(), m_order.end(), orderOPT.begin() );
-            if ( costRELAX >= costLB ) break;
+            // best possible solution found
+            if ( costRELAX == costLB ) break;
          }
 
          // prune when
          // 1) costLB > costUB: the prefix will not generate a improved solution
          // 2) costRLX == 0: there is no remaining segment to be solved
          // 3) costEID == 0: push the solved eid to the end of the permutation
-         if ( ( costUB <= costLB  ) || ( costRLX == 0 ) || ( costEID == 0 ) )
+         if ( ( costUB <= costLB ) || ( costRLX == 0 ) || ( costEID == 0 ) )
             m_p.prune();
 
-         // TODO Jump permutation when U is empty
-         // TODO Consider only the eid's covering the sid's on U
          eid = m_p.next();
       }
-
-      // sanity check (something went wrong)
-      if ( costRELAX > costUB )
-         throw std::runtime_error( "Unfeasible cost found (costRELAX < costUB)." );
 
       std::copy( orderOPT.begin(), orderOPT.end(), m_order.begin() );
       return costUB;
@@ -775,11 +795,13 @@ int call_solvers( int argc, char* argv[] ) {
    std::string fnmr = "/home/michael/gitrepos/bb-sbbu/DATA_TEST/testC.nmr";
    size_t tmax = 3600;
    bool clean_log = false;
+   bool verbose = false;
    for ( int i = 0; i < argc; ++i ) {
       auto arg = argv[ i ];
       if ( strcmp( arg, "-fnmr" ) == 0 ) fnmr = argv[ i + 1 ];
       if ( strcmp( arg, "-tmax" ) == 0 ) tmax = atoi( argv[ i + 1 ] );
       if ( strcmp( arg, "-clean_log" ) == 0 ) clean_log = true;
+      if ( strcmp( arg, "-verbose" ) == 0 ) verbose = true;
    }
 
    auto flog = std::regex_replace( fnmr, std::regex( ".nmr" ), ".log" );
@@ -800,6 +822,7 @@ int call_solvers( int argc, char* argv[] ) {
    auto& E = nmr.m_E;
    auto& S = nmr.m_S;
 
+   write_log( fid, "> verbose ........... %d\n", verbose ? 1 : 0 );
    write_log( fid, "> clean_log ......... %d\n", clean_log ? 1 : 0 );
    write_log( fid, "> tmax (secs) ....... %ld\n", tmax );
    write_log( fid, "> nnodes ............ %d\n", nmr.m_nnodes );
@@ -823,7 +846,7 @@ int call_solvers( int argc, char* argv[] ) {
    // call order_bb if needed
    BB bb( nmr );
    tic = TIME_NOW();
-   auto costBB = bb.solve( tmax = tmax );
+   auto costBB = bb.solve( tmax, verbose );
    toc = ETS( tic );
    write_log( fid, "> timeoutBB ......... %d\n", bb.m_timeout ? 1 : 0 );
    write_log( fid, "> costBB ............ %d\n", costBB );
