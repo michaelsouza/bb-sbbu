@@ -9,3 +9,4 @@ build/*
 bb.dbg
 DATA_EPSD_00_DMAX_50/*.log
 DATA_EPSD_00_DMAX_60/*.log
+.ipynb_checkpoints/*

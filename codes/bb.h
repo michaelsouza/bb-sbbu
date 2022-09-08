@@ -28,7 +28,7 @@ public:
    int m_i;
    int m_j;
    weight_t m_weight;
-   std::set<int> m_eid;
+   std::vector<int> m_EID;
 
    NMRSegment() {
       m_sid = -1;
@@ -38,7 +38,7 @@ public:
    }
 
    NMRSegment( const NMRSegment& s )
-       : m_eid( s.m_eid ) {
+       : m_EID( s.m_EID ) {
       m_sid = s.m_sid;
       m_i = s.m_i;
       m_j = s.m_j;
@@ -57,7 +57,11 @@ public:
    }
 
    void add_eid( int eid ) {
-      m_eid.insert( eid );
+      // ordered insertion
+      auto it = std::upper_bound( m_EID.begin(), m_EID.end(), eid );
+      // element not found
+      if ( it == m_EID.end() )
+         m_EID.insert( it, eid );
    }
 
    void update_weight() {
@@ -81,7 +85,7 @@ public:
    int m_eid;
    int m_i;
    int m_j;
-   std::set<int> m_sid;
+   std::vector<int> m_SID;
 
    NMREdge() {
       m_eid = -1;
@@ -96,7 +100,11 @@ public:
    }
 
    void add_sid( int sid ) {
-      m_sid.insert( sid );
+      // ordered insertion
+      auto it = std::upper_bound( m_SID.begin(), m_SID.end(), sid );
+      // element not found
+      if ( it == m_SID.end() )
+         m_SID.insert( it, sid );
    }
 
    bool check_cover( NMRSegment& s ) {
@@ -209,7 +217,7 @@ weight_t order_cost( std::vector<int>& order, std::map<int, NMREdge>& E, std::ma
    for ( auto&& eid : order ) {
       weight_t edge_cost = 1;
       const auto& e = E[ eid ];
-      for ( auto&& sid : e.m_sid ) {
+      for ( auto&& sid : e.m_SID ) {
          // sid not in S, it does not need to be covered
          if ( S.find( sid ) == S.end() ) continue;
          // sid already covered
@@ -236,8 +244,8 @@ weight_t order_sbbu( NMR& nmr, std::vector<int>& order ) {
 
    std::sort( order.begin(), order.end(),
        [ &E ]( const int& eidA, const int& eidB ) -> bool {
-         const auto& eA = E[ eidA ];
-         const auto& eB = E[ eidB ];
+          const auto& eA = E[ eidA ];
+          const auto& eB = E[ eidB ];
           if ( eA.m_j == eB.m_j )
              return eA.m_i < eB.m_i;
           return eA.m_j < eB.m_j;
@@ -271,6 +279,13 @@ weight_t order_brute( NMR& nmr, std::vector<int>& orderOPT ) {
 weight_t cost_relax( std::set<int>& U, std::map<int, NMRSegment>& S ) {
    weight_t total_cost = 0;
    for ( auto&& sid : U ) total_cost += S[ sid ].m_weight;
+   return total_cost;
+}
+
+weight_t cost_relax( std::map<int, NMRSegment>& S ) {
+   weight_t total_cost = 0;
+   for ( auto&& kv : S )
+      total_cost += S[ kv.first ].m_weight;
    return total_cost;
 }
 
@@ -435,35 +450,65 @@ public:
    }
 };
 
-class BBPerm {
-private:
-   void setMembers() {
-      m_state = 'n';
-      m_idx = -1;
-      m_order.resize( m_keys.size() );
-      for ( auto&& key : m_keys )
-         m_bst.add( key );
-   }
-
+class BBP {
 public:
    std::vector<int> m_keys;
    // current order
-   std::vector<int> m_order;
+   std::vector<int> m_o;
    // index of the element last element inserted
    int m_idx;
    // n:normal, p:prune
    char m_state;
-   BST m_bst;
+   BST m_t;
+   // key can be added to m_o iff m_q[key] > 0
+   std::vector<int>& m_q;
+   // m_bt[key]: true iff key was inserted in m_t
+   std::vector<bool> m_bt;
+   // m_bo[key]: true iff key was inserted in m_o
+   std::vector<bool> m_bo;
 
-   BBPerm( std::vector<NMREdge>& E ) {
+   BBP( std::vector<NMREdge>& E, std::vector<int>& q )
+       : m_q( q ) {
       for ( auto&& e : E )
          m_keys.push_back( e.m_eid );
+
       setMembers();
    }
 
-   BBPerm( std::vector<int>& keys ) {
+   BBP( std::vector<int>& keys, std::vector<int>& q )
+       : m_q( q ) {
       std::copy( keys.begin(), keys.end(), m_keys.begin() );
       setMembers();
+   }
+
+   inline int minKey() {
+      auto key = m_t.minKey( true );
+      m_bt[ key ] = false;
+      return key;
+   }
+
+   inline int minKeyGT( int key ) {
+      key = m_t.minKeyGT( key, true );
+      if( key > -1 ) m_bt[ key ] = false;
+      return key;
+   }
+
+   inline void add_key( int key ) {
+      if ( m_bt[ key ] || m_bo[ key ] ) return;
+      m_t.add( key );
+      m_bt[ key ] = true;
+   }
+
+   inline void order_add( const int key ) {
+      m_o[ ++m_idx ] = key;
+      if ( key > -1 ) m_bo[ key ] = true;
+   }
+
+   inline int order_rem() {
+      const auto key = m_o[ m_idx ];
+      m_o[ m_idx-- ] = -1;
+      if ( key > -1 ) m_bo[ key ] = false;
+      return key;
    }
 
    /**
@@ -474,22 +519,21 @@ public:
     */
    int next() {
       if ( m_state == 'n' ) {
-         if ( m_bst.m_size > 0 ) {
-            auto key = m_bst.minKey( true );
-            m_order[ ++m_idx ] = key;
-            return key;
+         if ( m_t.m_size > 0 ) {
+            const auto key = minKey();
+            order_add( key );
+            if ( key == -1 || m_q[ key ] > 0 ) return key;
          }
          m_state = 'p';
          return next();
       }
 
-      if ( m_idx == -1 )
-         return -1;
+      if ( m_idx == -1 ) return -1;
 
-      const auto keyOld = m_order[ m_idx ];
-      auto key = m_bst.minKeyGT( keyOld, true );
-      m_bst.add( keyOld );
-      m_order[ m_idx ] = key;
+      const auto keyOld = order_rem();
+      const auto key = minKeyGT( keyOld );
+      add_key( keyOld );
+      order_add( key );
       if ( key < 0 ) {
          --m_idx;
          return next();
@@ -501,29 +545,60 @@ public:
    void prune() {
       m_state = 'p';
    }
+
+private:
+   void setMembers() {
+      m_state = 'n';
+      m_idx = -1;
+      
+      m_o.resize( m_keys.size() );
+      std::fill( m_o.begin(), m_o.end(), -1 );
+      
+      int keyMax = 0;
+      for ( auto&& key : m_keys ) {
+         m_t.add( key );
+         if ( keyMax < key ) keyMax = key;
+      }
+
+      m_bt.resize( keyMax + 1 ); // key can be one-based
+      std::fill( m_bt.begin(), m_bt.end(), true );
+      
+      m_bo.resize( m_bt.size() );
+      std::fill( m_bo.begin(), m_bo.end(), false );
+   }
 };
 
 class BB {
 public:
+   unsigned long long int m_niters;
    int m_idx;
    NMR& m_nmr;
-   BBPerm m_perm;
+   BBP m_p;
    bool m_timeout;
    size_t m_nedges;
    std::vector<int> m_order;
    std::map<int, NMREdge>& m_E;
    std::map<int, NMRSegment>& m_S;
-   // array of the cost added by each eid
+   // m_c[i]: cost added by the i-th eid of the current order
    std::vector<weight_t> m_c;
+   // m_q[eid]: number of uncovered sid's associated to eid
+   std::vector<int> m_q;
 
    BB( NMR& nmr )
-       : m_nmr( nmr ), m_E( nmr.m_E ), m_S( nmr.m_S ), m_perm( nmr.m_pruneEdges ) {
+       : m_nmr( nmr ), m_E( nmr.m_E ), m_S( nmr.m_S ), m_p( nmr.m_pruneEdges, m_q ) {
       m_idx = -1;
       m_nedges = m_E.size();
       m_order.resize( m_nedges );
       m_timeout = false;
+      // init c *****************
       m_c.resize( m_nedges );
       std::fill( m_c.begin(), m_c.end(), 0 );
+      // init q *****************
+      // note that the eid's are one-based
+      int eidMax = 0;
+      for ( auto&& kv : m_E )
+         if ( eidMax < kv.first ) eidMax = kv.first;
+      m_q.resize( eidMax + 1 );
    }
 
    /**
@@ -533,19 +608,23 @@ public:
     * @param U set of available segments
     * @return weight_t
     */
-   weight_t order_rem( std::vector<int>& C, std::set<int>& U, weight_t& costRLX ) {
+   weight_t order_rem( std::vector<int>& C, weight_t& costRLX ) {
       weight_t total_cost = 0;
-      while ( m_idx >= m_perm.m_idx && m_perm.m_order[ m_idx ] != m_order[ m_idx ] ) {
+      while ( m_idx >= m_p.m_idx && m_p.m_o[ m_idx ] != m_order[ m_idx ] ) {
          auto eid = m_order[ m_idx ];
          // set invalid value
          m_order[ m_idx ] = -1;
          total_cost += m_c[ m_idx ];
          const auto& e = m_E[ eid ];
-         for ( auto&& sid : e.m_sid ) {
+         for ( auto&& sid : e.m_SID ) {
             --C[ sid ];
             if ( C[ sid ] == 0 ) {
-               U.insert( sid );
                const auto s = m_S[ sid ];
+               // increase m_q
+               for ( auto&& eid : s.m_EID ) {
+                  ++m_q[ eid ];
+                  if ( m_q[ eid ] == 1 ) m_p.add_key( eid );
+               }
                // increment the relaxed cost
                costRLX += s.m_weight;
             }
@@ -563,17 +642,19 @@ public:
     * @param U set of the uncovered segments.
     * @return weight_t
     */
-   weight_t order_add( int eid, std::vector<int>& C, std::set<int>& U, weight_t& costRLX ) {
+   weight_t order_add( int eid, std::vector<int>& C, weight_t& costRLX ) {
       m_order[ ++m_idx ] = eid;
       weight_t eid_cost = 1;
       const auto& e = m_E[ eid ];
-      for ( auto&& sid : e.m_sid ) {
+      for ( auto&& sid : e.m_SID ) {
          ++C[ sid ];
          // the current eid is the only one covering the sid
          if ( C[ sid ] == 1 ) {
             const auto& s = m_S[ sid ];
             eid_cost *= s.m_weight;
-            U.erase( sid );
+            // decrease m_q
+            for ( auto&& eid : s.m_EID )
+               --m_q[ eid ];
             // reduce the relaxed cost
             costRLX -= s.m_weight;
          }
@@ -584,23 +665,25 @@ public:
    }
 
    weight_t solve( size_t tmax = 3600 ) {
+      m_niters = 0;
       auto tic = TIME_NOW();
       weight_t costUB = WEIGHT_MAX;
-      std::fill( m_order.begin(), m_order.end(), -1 );
       std::vector<int> orderOPT;
       costUB = order_sbbu( m_nmr, orderOPT );
+
+      // init m_order
+      std::fill( m_order.begin(), m_order.end(), -1 );
+
+      // init q
+      for ( auto&& kv : m_E )
+         m_q[ kv.first ] = kv.second.m_SID.size();
 
       // C[sid] : number of edges already included in the order that cover segment sid
       std::vector<int> C( m_S.size() + 1 ); // the segments are one-based
       std::fill( C.begin(), C.end(), 0 );
 
-      // U: set of the uncovered segments
-      std::set<int> U;
-      for ( auto&& kv : m_S )
-         U.insert( kv.first );
-
       // first cost_relax
-      auto costRELAX = cost_relax( U, m_S );
+      auto costRELAX = cost_relax( m_S );
 
       // solution found
       if ( costRELAX == costUB ) {
@@ -609,7 +692,7 @@ public:
       }
 
       // costACC: cost accumulated to the current idx
-      weight_t costACC = 0;      
+      weight_t costACC = 0;
       // costRLX: LB of the cost to cover the remaning segments
       // When costRLX == 0, there is no remaining segments to be covered
       weight_t costRLX = costRELAX;
@@ -618,9 +701,10 @@ public:
       // eid_cost: cost of the last edge added
       weight_t costEID = costACC + costRLX;
 
-      int eid = m_perm.next();
+      int eid = m_p.next();
       // loop through all permutations
       while ( eid > -1 ) {
+         ++m_niters;
          auto toc = ETS( tic );
          if ( toc > tmax ) {
             m_timeout = true;
@@ -628,14 +712,14 @@ public:
             break;
          }
 
-         costACC -= order_rem( C, U, costRLX );
-         costEID = order_add( eid, C, U, costRLX );
+         costACC -= order_rem( C, costRLX );
+         costEID = order_add( eid, C, costRLX );
 
          costACC += costEID;
          costLB = costACC + costRLX;
-         
+
          // sanity check (something went wrong)
-         if( costLB < costRELAX ){
+         if ( costLB < costRELAX ) {
             costUB = costLB;
             std::copy( m_order.begin(), m_order.end(), orderOPT.begin() );
             break;
@@ -652,11 +736,12 @@ public:
          // 1) costLB > costUB: the prefix will not generate a improved solution
          // 2) costRLX == 0: there is no remaining segment to be solved
          // 3) costEID == 0: push the solved eid to the end of the permutation
-         if ( ( costLB > costUB ) || ( costRLX == 0 ) || ( costEID == 0 ) ) m_perm.prune();
+         if ( ( costUB <= costLB  ) || ( costRLX == 0 ) || ( costEID == 0 ) )
+            m_p.prune();
 
          // TODO Jump permutation when U is empty
          // TODO Consider only the eid's covering the sid's on U
-         eid = m_perm.next();
+         eid = m_p.next();
       }
 
       // sanity check (something went wrong)
@@ -676,14 +761,14 @@ bool exists( std::string fname ) {
 void write_log( FILE* fid, const char* fmt, ... ) {
    va_list args;
    va_start( args, fmt );
-   vfprintf( fid, fmt, args );   
+   vfprintf( fid, fmt, args );
    va_end( args );
 
    va_start( args, fmt );
    vprintf( fmt, args );
    va_end( args );
 
-   fflush(fid);
+   fflush( fid );
 }
 
 int call_solvers( int argc, char* argv[] ) {

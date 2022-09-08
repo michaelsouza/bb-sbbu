@@ -16,13 +16,13 @@ TEST( NMR, testA ) {
    auto& E = nmr.m_E;
    auto& S = nmr.m_S;
 
-   std::set<int> e1_sid( { 1, 2 } );
-   std::set<int> e2_sid( { 2, 3 } );
-   std::set<int> e3_sid( { 4 } );
+   std::vector<int> e1_SID( { 1, 2 } );
+   std::vector<int> e2_SID( { 2, 3 } );
+   std::vector<int> e3_SID( { 4 } );
 
-   EXPECT_EQ( E[ 1 ].m_sid, e1_sid );
-   EXPECT_EQ( E[ 2 ].m_sid, e2_sid );
-   EXPECT_EQ( E[ 3 ].m_sid, e3_sid );
+   EXPECT_EQ( E[ 1 ].m_SID, e1_SID );
+   EXPECT_EQ( E[ 2 ].m_SID, e2_SID );
+   EXPECT_EQ( E[ 3 ].m_SID, e3_SID );
 }
 
 TEST( order_sbbu, testA ) {
@@ -91,19 +91,22 @@ TEST( BST, test ) {
    EXPECT_EQ( b.m_size, 0 );
 }
 
-void compareBruteWithBB( std::string fnmr ) {
+auto compareBruteWithBB( std::string fnmr ) {
    NMR nmr( fnmr );
    BB bb( nmr );
    std::vector<int> orderOPT;
    auto costOPT = order_brute( nmr, orderOPT );
    auto costBB = bb.solve();
    EXPECT_EQ( costOPT, costBB );
+   return bb.m_niters;
 }
 
 TEST( BB, testCostOptimality ) {
-   compareBruteWithBB( "../DATA_TEST/testA.nmr" );
-   compareBruteWithBB( "../DATA_TEST/testB.nmr" );
-   compareBruteWithBB( "../DATA_TEST/testC.nmr" );
-   compareBruteWithBB( "../DATA_TEST/testD.nmr" );
-   compareBruteWithBB( "../DATA_TEST/testE.nmr" );
+   unsigned long long int niters;
+   niters = compareBruteWithBB( "../DATA_TEST/testA.nmr" );
+   niters = compareBruteWithBB( "../DATA_TEST/testB.nmr" );
+   niters = compareBruteWithBB( "../DATA_TEST/testC.nmr" );
+   niters = compareBruteWithBB( "../DATA_TEST/testD.nmr" );
+   niters = compareBruteWithBB( "../DATA_TEST/testE.nmr" );
+   niters = compareBruteWithBB( "../DATA_TEST/testE.nmr" );
 }
