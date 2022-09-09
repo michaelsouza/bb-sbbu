@@ -25,33 +25,33 @@ TEST( NMR, testA ) {
    EXPECT_EQ( E[ 3 ].m_SID, e3_SID );
 }
 
-TEST( order_sbbu, testA ) {
+TEST( sbbuSolve, testA ) {
    NMR nmr( "../DATA_TEST/testA.nmr" );
    std::vector<int> orderSBBU;
-   auto costSBBU = order_sbbu( nmr, orderSBBU );
+   auto costSBBU = sbbuSolve( nmr, orderSBBU );
    std::vector<int> order( { 1, 2, 3 } );
    EXPECT_EQ( orderSBBU, order );
 }
 
-TEST( order_sbbu, testF ) {
+TEST( sbbuSolve, testF ) {
    NMR nmr( "../DATA_TEST/testF.nmr" );
    std::vector<int> orderSBBU;
-   auto costSBBU = order_sbbu( nmr, orderSBBU );
+   auto costSBBU = sbbuSolve( nmr, orderSBBU );
    std::vector<int> order( { 1, 2, 5, 4, 3 } );
    EXPECT_EQ( orderSBBU, order );
 }
 
-TEST( order_brute, testA ) {
+TEST( bruteSolve, testA ) {
    NMR nmr( "../DATA_TEST/testA.nmr" );
    std::vector<int> orderOPT;
-   auto costOPT = order_brute( nmr, orderOPT );
+   auto costOPT = bruteSolve( nmr, orderOPT );
    EXPECT_EQ( costOPT, 168 );
 }
 
-TEST( order_brute, testB ) {
+TEST( bruteSolve, testB ) {
    NMR nmr( "../DATA_TEST/testB.nmr" );
    std::vector<int> orderOPT;
-   auto costOPT = order_brute( nmr, orderOPT );
+   auto costOPT = bruteSolve( nmr, orderOPT );
    std::vector<int> order( { 3, 2, 1 } );
    EXPECT_EQ( costOPT, 24 );
    EXPECT_EQ( orderOPT, order );
@@ -103,7 +103,7 @@ auto compareBruteWithBB( std::string fnmr ) {
    NMR nmr( fnmr );
    BB bb( nmr );
    std::vector<int> orderOPT;
-   auto costOPT = order_brute( nmr, orderOPT );
+   auto costOPT = bruteSolve( nmr, orderOPT );
    auto costBB = bb.solve( 3600, true );
    EXPECT_EQ( costOPT, costBB );
    return bb.m_niters;

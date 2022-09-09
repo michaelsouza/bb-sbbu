@@ -12,6 +12,7 @@
 #include <stdexcept>
 #include <string>
 #include <vector>
+#include <cmath>
 
 using weight_t = unsigned long long int;
 #define WEIGHT_MAX ( ULONG_LONG_MAX / 2 )
@@ -49,14 +50,14 @@ public:
       m_sid = ++NMRSegment::SID;
       m_i = i;
       m_j = j;
-      update_weight();
+      updateWeight();
    }
 
    static void resetSID() {
       NMRSegment::SID = 0;
    }
 
-   void add_eid( int eid ) {
+   void addEid( int eid ) {
       // ordered insertion
       auto it = std::upper_bound( m_EID.begin(), m_EID.end(), eid );
       // element not found
@@ -64,7 +65,7 @@ public:
          m_EID.insert( it, eid );
    }
 
-   void update_weight() {
+   void updateWeight() {
       weight_t p = m_j - m_i + 1;
       if ( p > 63 ) throw std::invalid_argument( "Segment weight is too large to be represented (overflow)." );
       m_weight = 1 << p;
@@ -99,7 +100,7 @@ public:
       m_j = j;
    }
 
-   void add_sid( int sid ) {
+   void addSid( int sid ) {
       // ordered insertion
       auto it = std::upper_bound( m_SID.begin(), m_SID.end(), sid );
       // element not found
@@ -107,7 +108,7 @@ public:
          m_SID.insert( it, sid );
    }
 
-   bool check_cover( NMRSegment& s ) {
+   bool checkCover( NMRSegment& s ) {
       return ( m_i + 3 <= s.m_i ) && ( s.m_j <= m_j );
    }
 
@@ -196,9 +197,9 @@ private:
       // O(len(S) * len(m_pruneEdges))
       for ( auto&& s : m_segments )
          for ( auto&& e : m_pruneEdges )
-            if ( e.check_cover( s ) ) {
-               e.add_sid( s.m_sid );
-               s.add_eid( e.m_eid );
+            if ( e.checkCover( s ) ) {
+               e.addSid( s.m_sid );
+               s.addEid( e.m_eid );
             }
    }
 
@@ -210,7 +211,7 @@ private:
    }
 };
 
-weight_t order_cost( std::vector<int>& order, std::map<int, NMREdge>& E, std::map<int, NMRSegment>& S, weight_t costUB = WEIGHT_MAX ) {
+weight_t costOrder( std::vector<int>& order, std::map<int, NMREdge>& E, std::map<int, NMRSegment>& S, weight_t costUB = WEIGHT_MAX ) {
    weight_t total_cost = 0; // total cost
    // sid is added to B by the first edge that covers it.
    std::set<int> B;
@@ -235,7 +236,7 @@ weight_t order_cost( std::vector<int>& order, std::map<int, NMREdge>& E, std::ma
    return total_cost;
 }
 
-weight_t order_sbbu( NMR& nmr, std::vector<int>& order ) {
+weight_t sbbuSolve( NMR& nmr, std::vector<int>& order ) {
    auto& E = nmr.m_E;
 
    order.clear();
@@ -251,10 +252,10 @@ weight_t order_sbbu( NMR& nmr, std::vector<int>& order ) {
           return eA.m_j < eB.m_j;
        } );
 
-   return order_cost( order, E, nmr.m_S );
+   return costOrder( order, E, nmr.m_S );
 }
 
-weight_t order_brute( NMR& nmr, std::vector<int>& orderOPT ) {
+weight_t bruteSolve( NMR& nmr, std::vector<int>& orderOPT ) {
    auto& E = nmr.m_E;
    auto& S = nmr.m_S;
    weight_t costOPT = WEIGHT_MAX;
@@ -266,7 +267,7 @@ weight_t order_brute( NMR& nmr, std::vector<int>& orderOPT ) {
    orderOPT.resize( order.size() );
 
    do {
-      auto c = order_cost( order, E, S );
+      auto c = costOrder( order, E, S );
       if ( c < costOPT ) {
          costOPT = c;
          std::copy( order.begin(), order.end(), orderOPT.begin() );
@@ -276,17 +277,17 @@ weight_t order_brute( NMR& nmr, std::vector<int>& orderOPT ) {
    return costOPT;
 }
 
-weight_t cost_relax( std::set<int>& U, std::map<int, NMRSegment>& S ) {
-   weight_t total_cost = 0;
-   for ( auto&& sid : U ) total_cost += S[ sid ].m_weight;
-   return total_cost;
+weight_t costRelax( std::set<int>& U, std::map<int, NMRSegment>& S ) {
+   weight_t costTotal = 0;
+   for ( auto&& sid : U ) costTotal += S[ sid ].m_weight;
+   return costTotal;
 }
 
-weight_t cost_relax( std::map<int, NMRSegment>& S ) {
-   weight_t total_cost = 0;
+weight_t costRelax( std::map<int, NMRSegment>& S ) {
+   weight_t costTotal = 0;
    for ( auto&& kv : S )
-      total_cost += S[ kv.first ].m_weight;
-   return total_cost;
+      costTotal += S[ kv.first ].m_weight;
+   return costTotal;
 }
 
 /**
@@ -614,7 +615,7 @@ public:
    BBP m_p;
    bool m_timeout;
    size_t m_nedges;
-   std::vector<int> m_order;
+   std::vector<int> m_ord;
    std::map<int, NMREdge>& m_E;
    std::map<int, NMRSegment>& m_S;
    // m_c[i]: cost added by the i-th eid of the current order
@@ -625,7 +626,7 @@ public:
        : m_nmr( nmr ), m_E( nmr.m_E ), m_S( nmr.m_S ), m_p( nmr.m_E, nmr.m_S ) {
       m_idx = -1;
       m_nedges = m_E.size();
-      m_order.resize( m_nedges );
+      m_ord.resize( m_nedges );
       m_timeout = false;
       // init c *****************
       m_c.resize( m_nedges );
@@ -635,17 +636,18 @@ public:
    /**
     * @brief
     *
-    * @param C C[id] is the number of edges on m_order covering the segment sid.
+    * @param C C[id] is the number of edges on m_ord covering the segment sid.
     * @param U set of available segments
     * @return weight_t
     */
-   weight_t order_rem( std::vector<int>& C, weight_t& costRLX ) {
-      weight_t total_cost = 0;
-      while ( m_idx >= m_p.m_idx && m_p.m_ord[ m_idx ] != m_order[ m_idx ] ) {
-         auto eid = m_order[ m_idx ];
+   weight_t remOrd( std::vector<int>& C, weight_t& costRLX ) {
+      // total cost of removed eid's
+      weight_t costTotal = 0;
+      while ( m_idx >= m_p.m_idx && m_p.m_ord[ m_idx ] != m_ord[ m_idx ] ) {
+         auto eid = m_ord[ m_idx ];
          // set invalid value
-         m_order[ m_idx ] = -1;
-         total_cost += m_c[ m_idx ];
+         m_ord[ m_idx ] = -1;
+         costTotal += m_c[ m_idx ];
          const auto& e = m_E[ eid ];
          for ( auto&& sid : e.m_SID ) {
             --C[ sid ];
@@ -657,7 +659,7 @@ public:
          }
          --m_idx;
       }
-      return total_cost;
+      return costTotal;
    }
 
    /**
@@ -668,23 +670,29 @@ public:
     * @param U set of the uncovered segments.
     * @return weight_t
     */
-   weight_t order_add( int eid, std::vector<int>& C, weight_t& costRLX ) {
-      m_order[ ++m_idx ] = eid;
-      weight_t eid_cost = 1;
+   weight_t addOrd( int eid, std::vector<int>& C, weight_t& costRLX,
+       const weight_t costACC, const weight_t costUB ) {
+      m_ord[ ++m_idx ] = eid;
+      weight_t costEid = 1;
       const auto& e = m_E[ eid ];
+
       for ( auto&& sid : e.m_SID ) {
          ++C[ sid ];
          // the current eid is the only one covering the sid
          if ( C[ sid ] == 1 ) {
             const auto& s = m_S[ sid ];
-            eid_cost *= s.m_weight;
             // reduce the relaxed cost
-            costRLX -= s.m_weight;
+            costRLX -= s.m_weight;            
+            // avoid overflow by not incrementing costEid, 
+            // if it's too large. the costEid will not be correctly 
+            // calculated, but the eid will be pruned any way.
+            if ( costUB >= costACC + costEid )
+               costEid *= s.m_weight;
          }
       }
-      eid_cost = eid_cost > 1 ? eid_cost : 0;
-      m_c[ m_idx ] = eid_cost;
-      return eid_cost;
+      costEid = costEid > 1 ? costEid : 0;
+      m_c[ m_idx ] = costEid;
+      return costEid;
    }
 
    weight_t solve( size_t tmax = 3600, bool verbose = false ) {
@@ -693,21 +701,21 @@ public:
       auto tic = TIME_NOW();
       weight_t costUB = WEIGHT_MAX;
       std::vector<int> orderOPT;
-      costUB = order_sbbu( m_nmr, orderOPT );
+      costUB = sbbuSolve( m_nmr, orderOPT );
 
       // init m_order
-      std::fill( m_order.begin(), m_order.end(), -1 );
+      std::fill( m_ord.begin(), m_ord.end(), -1 );
 
       // C[sid] : number of edges already included in the order that cover segment sid
       std::vector<int> C( m_S.size() + 1 ); // the segments are one-based
       std::fill( C.begin(), C.end(), 0 );
 
       // first cost_relax
-      auto costRELAX = cost_relax( m_S );
+      auto costRELAX = costRelax( m_S );
 
       // solution found
       if ( costRELAX == costUB ) {
-         std::copy( orderOPT.begin(), orderOPT.end(), m_order.begin() );
+         std::copy( orderOPT.begin(), orderOPT.end(), m_ord.begin() );
          return costUB;
       }
 
@@ -732,17 +740,17 @@ public:
             break;
          }
 
-         costACC -= order_rem( C, costRLX );
-         costEID = order_add( eid, C, costRLX );
+         costACC -= remOrd( C, costRLX );
+         costEID = addOrd( eid, C, costRLX, costACC, costUB );
 
          costACC += costEID;
          costLB = costACC + costRLX;
 
          if ( verbose ) {
-            printf( "UB:%8ld, LB:%8ld, CE:%8ld, AC:%8ld, RL:%8ld, ", costUB, costLB, costEID, costACC, costRLX );
+            printf( "UB:%8llu, LB:%8llu, CE:%8llu, AC:%8llu, RL:%8llu, ", costUB, costLB, costEID, costACC, costRLX );
             printf( " o:[" );
             for ( int i = 0; i <= m_idx; ++i )
-               printf( "%d, ", m_order[ i ] );
+               printf( "%d, ", m_ord[ i ] );
             printf( "]\n" );
          }
 
@@ -753,7 +761,7 @@ public:
          // update solution
          if ( ( costRLX == 0 ) && ( costLB < costUB ) ) {
             costUB = costLB;
-            std::copy( m_order.begin(), m_order.end(), orderOPT.begin() );
+            std::copy( m_ord.begin(), m_ord.end(), orderOPT.begin() );
             // best possible solution found
             if ( costRELAX == costLB ) break;
          }
@@ -768,7 +776,7 @@ public:
          eid = m_p.next();
       }
 
-      std::copy( orderOPT.begin(), orderOPT.end(), m_order.begin() );
+      std::copy( orderOPT.begin(), orderOPT.end(), m_ord.begin() );
       return costUB;
    }
 };
@@ -832,13 +840,13 @@ int call_solvers( int argc, char* argv[] ) {
    std::set<int> U;
    for ( auto&& kv : S ) U.insert( kv.first );
 
-   auto costRELAX = cost_relax( U, S );
+   auto costRELAX = costRelax( U, S );
    write_log( fid, "> costRELAX ......... %d\n", costRELAX );
 
    // call order_sbbu
    std::vector<int> orderSBBU;
    auto tic = TIME_NOW();
-   auto costSBBU = order_sbbu( nmr, orderSBBU );
+   auto costSBBU = sbbuSolve( nmr, orderSBBU );
    auto toc = ETS( tic );
    write_log( fid, "> costSBBU .......... %d\n", costSBBU );
    write_log( fid, "> timeSBBU (secs) ... %ld\n", toc );
