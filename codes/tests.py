@@ -4,7 +4,6 @@
 import unittest
 from tkinter import SE
 from bb import *
-from itertools import permutations
 
 class TestNMR(unittest.TestCase):
     def test_segments(self):
