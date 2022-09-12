@@ -25,7 +25,7 @@ FNMR = sorted(FNMR, key=lambda fnmr: os.stat(fnmr).st_size)
 
 ARGV = []
 for fnmr in FNMR:
-    arg = './build/bb.bin -tmax %g -fnmr %s -clean_log' % (tmax, fnmr)
+    arg = './build/bb.bin -tmax %d -fnmr %s -clean_log' % (tmax, fnmr)
     ARGV.append(arg)
 
 print('Saving args.txt')
