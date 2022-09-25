@@ -14,3 +14,4 @@ args.txt
 results.xlsx
 profiling/bb.stats
 profiling/git_commit.txt
+vtune/bb/r*

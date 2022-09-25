@@ -849,7 +849,7 @@ public:
       for ( auto& sid : m_ordS ) m_b[ sid ] = false;
    }
 
-   void predecessors( int eidA, std::vector<int>& p ) {
+   inline void predecessors( int eidA, std::vector<int>& p ) {
       p.clear();
       int i = 0;
       for ( auto& eidB : m_preds[ eidA ] ) {
@@ -1065,7 +1065,7 @@ int call_solvers( int argc, char* argv[] ) {
    // call order_bb
    BB bb( nmr );
    tic = TIME_NOW();
-   auto costBB = bb.solve( tmax, verbose );
+   auto costBB = bb.solve( tmax > 60 ? 60 : tmax, verbose );
    toc = ETS( tic );
    write_log( fid, "> timeoutBB ......... %d\n", bb.m_timeout ? 1 : 0 );
    write_log( fid, "> costBB ............ %d\n", costBB );
