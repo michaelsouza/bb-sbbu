@@ -1,12 +1,12 @@
 import os
 import sys
-import multiprocessing as mp
 import tqdm
+import multiprocessing as mp
 
 WDIR = ['DATA_EPSD_00_DMAX_50', 'DATA_EPSD_00_DMAX_60']
 
 # default parameters
-tmax = 60
+tmax = 3600
 
 # read parameters
 for i, arg in enumerate(sys.argv):
@@ -26,6 +26,7 @@ FNMR = sorted(FNMR, key=lambda fnmr: os.stat(fnmr).st_size)
 ARGV = []
 for fnmr in FNMR:
     arg = './build/bb.bin -tmax %d -fnmr %s -clean_log' % (tmax, fnmr)
+    # arg = 'python codes/bb.py -tmax %d -fnmr %s -clean_log' % (tmax, fnmr)
     ARGV.append(arg)
 
 print('Saving args.txt')

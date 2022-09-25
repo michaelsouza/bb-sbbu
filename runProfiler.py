@@ -30,5 +30,5 @@ if __name__ == "__main__":
     stats = pstats.Stats(profiler)
     stats.dump_stats(fn)
     print('To visualize stats, use snakeviz')
-    print('$snakeviz ', fn)
+    print('> snakeviz ', fn)
     

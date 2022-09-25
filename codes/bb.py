@@ -8,6 +8,7 @@ import time
 import pickle
 import numpy as np
 import networkx as nx
+from functools import cmp_to_key
 from itertools import permutations
 from heapq import heapify, heappop, heappush
 
@@ -37,6 +38,7 @@ class NMRSegment:
         if isinstance(other, NMRSegment):
             return self.i == other.i and self.j == other.j
         return False
+
 
 class NMREdge:
     EID = 0  # class static variable
@@ -73,7 +75,6 @@ class NMR:
         self.segments = self._segments()
         self.E, self.S = self._ordering_data()
 
-    
     def _segments(self):
         NMRSegment.resetSID()
         # I: sorted list of all atoms covered by prune edges
@@ -108,28 +109,29 @@ class NMR:
             for edge in self.pruneEdges:
                 if edge.check_cover(s):
                     edge.add_sid(s.sid)
-                    s.add_eid(edge.eid)        
+                    s.add_eid(edge.eid)
         return S
 
     @property
     def ordering_graph(self):
         G = nx.Graph()
         E, S = self.E, self.S
-        s_lbl = lambda sid: '%d:%d' % (S[sid].i, S[sid].j)
-        for sid in S:                
+        def s_lbl(sid): return '%d:%d' % (S[sid].i, S[sid].j)
+        for sid in S:
             G.add_node(s_lbl(sid), weight=S[sid].weight)
-        
+
         for eid in E:
             e_lbl = '%d' % eid
             G.add_node(e_lbl)
-            for sid in E[eid].sid:            
+            for sid in E[eid].sid:
                 G.add_edge(e_lbl, s_lbl(sid))
         return G
-    
+
     def _ordering_data(self):
-        E = {e.eid:e for e in self.pruneEdges}
-        S = {s.sid:s for s in self.segments}
+        E = {e.eid: e for e in self.pruneEdges}
+        S = {s.sid: s for s in self.segments}
         return E, S
+
 
 def order_cost(order, E, S, costUB=np.inf):
     total_cost = 0  # total cost
@@ -205,7 +207,7 @@ class BBPerm:
             # set invalid value
             self.order[self.idx] = -1
             self.idx -= 1
-            return self.next()        
+            return self.next()
         self.order[self.idx] = emin
         self.state = 'n'
         return emin
@@ -249,7 +251,7 @@ class BB:
         self.order = np.zeros(self.nedges, dtype=int)
         self.timeout = False
 
-    def order_rem(self, C, U):        
+    def order_rem(self, C, U):
         # Returns the total_cost of the eids removed from self.order
         # Remark: The dictionary C is updated.
         idx = self.idx
@@ -274,7 +276,7 @@ class BB:
             C[sid] : number of edges on self.order covering segment sid
             U: set of the uncovered segments.
         '''
-        self.order[self.perm.idx] = eid        
+        self.order[self.perm.idx] = eid
         eid_cost = 1
         for sid in self.E[eid].sid:
             C[sid] += 1
@@ -282,10 +284,10 @@ class BB:
             if C[sid] == 1:
                 eid_cost *= self.S[sid].weight
                 U.remove(sid)
-        return eid_cost if eid_cost > 1 else 0            
+        return eid_cost if eid_cost > 1 else 0
 
     def load(self):
-        fname = self.nmr.fnmr.replace('.nmr','.pkl')
+        fname = self.nmr.fnmr.replace('.nmr', '.pkl')
         print('> unpicliking', fname)
         with open(fname, 'rb') as fid:
             data = pickle.load(fid)
@@ -297,7 +299,7 @@ class BB:
         return C, U
 
     def dump(self, C, U):
-        fname = self.nmr.fnmr.replace('.nmr','.pkl')
+        fname = self.nmr.fnmr.replace('.nmr', '.pkl')
         print('> picliking', fname)
         data = {}
         data['idx'] = self.idx
@@ -316,7 +318,7 @@ class BB:
         else:
             # initial optimal solution
             self.orderOPT, self.costUB = order_sbbu(self.nmr)
-        
+
         # C[sid] : number of edges already included in the order that cover segment sid
         C = {sid: 0 for sid in self.S}
 
@@ -325,12 +327,12 @@ class BB:
 
         # first cost_relax
         costLB = cost_relax(U, self.S)
-        if costLB == self.costUB:            
+        if costLB == self.costUB:
             return self.orderOPT, self.costUB
-                                
+
         partial_cost = 0
         eid = self.perm.next()
-        # loop through all permutations        
+        # loop through all permutations
         while eid is not None:
             partial_cost -= self.order_rem(C, U)
             partial_cost += self.order_add(eid, C, U)
@@ -356,18 +358,181 @@ def write_log(fid, line):
     print(line)
     fid.write(line + '\n')
 
+
+class PriorityTree:
+    def __init__(self, nmr: NMR) -> None:
+        self.nmr = nmr
+        self.E, self.S = nmr.E, nmr.S
+        # sort edges by the number of segments
+        E = sorted(self.E, key=lambda eid: len(self.E[eid].sid), reverse=True)
+        # sort segments by the number of edges
+        b = {sid:False for sid in self.S}
+        self.ordS = []
+        for eid in E:
+            s = []
+            for sid in self.E[eid].sid:
+                if b[sid]:
+                    continue
+                b[sid] = True
+                s.append(sid)
+            self.ordS += sorted(s, key=lambda sid: len(self.S[sid].eid), reverse=True)
+        # Ek: number of uncovered segments
+        # When Ek is zero, we can calculate the cost of solving the edge eid
+        self.Ek = {eid:len(self.E[eid].sid) for eid in self.E}
+        # G: graph of priorities
+        self.G = nx.DiGraph()
+        self.order, self.cost = order_sbbu(self.nmr)
+        self.timeout = False
+
+    def check_path(self, eidA, eidB):
+        '''eidA: source
+           eidB: target
+        '''
+        try:
+            # A > B 
+            pAB = nx.shortest_path(self.G, source=eidA, target=eidB)
+        except:
+            pAB = None
+        return pAB is not None
+                
+
+    def available_edges(self, E):
+        C = {eid:True for eid in E}
+        for i in range(len(E)):
+            eidA = E[i]
+            if (eidA not in self.G) or (C[eidA] == False):
+                continue
+            for j in range(i+1,len(E)):
+                eidB = E[j]
+                if self.check_path(eidA, eidB):
+                    C[eidA] = False
+                    break
+                if self.check_path(eidB, eidA):
+                    C[eidB] = False
+        return sorted([eid for eid in C if C[eid]])
+
+    def add_precedence(self, eidA, E):
+        # eidA < eidB
+        P = []
+        for eidB in E:
+            if (eidB != eidA) and (self.G.has_edge(eidB, eidA) == False):
+                self.G.add_edge(eidB, eidA)
+                P.append((eidB, eidA))
+        return P
+
+    def edge_cost(self, c_eid, eid, costUB):
+        cost = 1
+        for sid in self.E[eid].sid:
+            if c_eid[sid] == eid:
+                s: NMRSegment = self.S[sid]
+                cost *= s.weight
+                if cost >= costUB:
+                    cost = costUB
+                    break
+        return 0 if cost == 1 else cost
+
+    def add_cost(self, sid, c_eid, costUB):
+        cost = 0
+        for eid in self.S[sid].eid:
+            if self.Ek[eid] == 0:
+                continue
+            self.Ek[eid] -= 1
+            if self.Ek[eid] == 0 and cost < costUB:
+                cost += self.edge_cost(c_eid, eid, costUB)
+        return cost
+
+    def rem_cost(self, i, sid, costADD):
+        costREM = costADD[i]
+        costADD[i] = 0
+        for eid in self.S[sid].eid:
+            self.Ek[eid] += 1
+        return costREM
+
+    def backtracking(self, level, E, P, c_idx, c_eid, cost, costADD):
+        while level >= 0:
+            sid = self.ordS[level]
+            cost -= self.rem_cost(level, sid, costADD)
+            c_eid[sid] = None
+            self.G.remove_edges_from(P[level])
+            P[level] = []
+            if c_idx[level] < (len(E[level]) - 1):
+                c_idx[level] += 1
+                break
+            E[level] = []
+            c_idx[level] = 0
+            level -= 1
+        return level if level >= 0 else None, cost
+
+    def save_order(self, c_eid):
+        self.order = np.unique([c_eid[sid] for sid in c_eid])
+        # remove all nodes with zero degree
+        d = dict(self.G.degree())
+        self.G.remove_nodes_from([eid for eid in d if d[eid] == 0])
+        # shortest paths
+        P = {eid:None for eid in self.order}
+        for eid in self.order:
+            P[eid] = nx.shortest_path(self.G, source=eid)
+        def cmp(eidA, eidB):
+            if eidA in P[eidB]:
+                return -1
+            if eidB in P[eidA]:
+                return +1
+            return 0
+        self.order = sorted(self.order, key=cmp_to_key(cmp))
+
+    def solve(self,tmax=60):
+        # init cost_relax
+        costLB = cost_relax(self.S, self.S)
+        if costLB == self.cost:
+            return self.order, self.cost
+        # c: vector of each segment choice
+        c_eid = {sid:None for sid in self.S}
+        c_idx = np.zeros(len(self.ordS), dtype=int)
+        costADD = c_idx.copy()  
+        level, cost = 0, 0 # index of the current segment
+        # E[i]: edges available at level 'i'
+        E = [[] for _ in range(len(c_idx))]
+        # P[i]: set of pairs precedence (eidA, eidB) added at level 'i'
+        P = [[] for _ in range(len(c_idx))]
+        tic = time.time()
+        while level is not None:
+            toc = time.time() - tic
+            if toc > tmax:
+                self.timeout = True
+                print('> timeoutBB %f seconds' % toc)
+                return self.order, self.cost
+            sid = self.ordS[level]
+            if len(E[level]) == 0:
+                E[level] = self.available_edges(list(self.S[sid].eid))
+            eid = E[level][c_idx[level]]
+            c_eid[sid] = eid
+            P[level] = self.add_precedence(eid, E[level])
+            costADD[level] = self.add_cost(sid, c_eid, self.cost)
+            cost += costADD[level]
+            # solution found
+            if (cost < self.cost) and (level == (len(self.ordS) - 1)):
+                self.cost = cost
+                self.save_order(c_eid) 
+            # next
+            if (cost < self.cost) and (level < (len(self.ordS) - 1)):
+                level += 1
+            else:
+                level, cost = self.backtracking(level, E, P, c_idx, c_eid, cost, costADD)
+        return self.order, self.cost
+
+
 def call_solvers(*argv):
     fnmr = '/home/michael/gitrepos/bb-sbbu/DATA_TEST/testC.nmr'
     tmax = 1
     clean_log = False
-    for i, arg in enumerate(argv):        
+    for i, arg in enumerate(argv):
         if arg == '-fnmr':
             fnmr = argv[i+1]
         if arg == '-tmax':
             tmax = float(argv[i+1])
         if arg == '-clean_log':
             clean_log = True
-    
+
     flog = fnmr.replace('.nmr', '.log')
     # check if already has a log file
     if not clean_log and os.path.exists(flog):
@@ -396,16 +561,25 @@ def call_solvers(*argv):
     write_log(fid, '> costSBBU .......... %d' % costSBBU)
     write_log(fid, '> timeSBBU (secs) ... %g' % toc)
 
-    # call order_bb if needed
+    # call priority_tree
     tic = time.time()
-    bb = BB(nmr)
-    costBB, costBB = bb.solve(tmax=tmax)
+    pt = PriorityTree(nmr)
+    orderPT, costPT = pt.solve()
     toc = time.time() - tic
-    write_log(fid, '> timeoutBB ......... %s' % bb.timeout)
-    write_log(fid, '> costBB ............ %d' % costBB)
-    write_log(fid, '> timeBB (secs) ..... %g' % toc)
+    write_log(fid, '> costPT ............ %d' % costPT)
+    write_log(fid, '> timePT (secs) ..... %g' % toc)
+
+    # call order_bb
+    # tic = time.time()
+    # bb = BB(nmr)
+    # costBB, costBB = bb.solve(tmax=tmax)
+    # toc = time.time() - tic
+    # write_log(fid, '> timeoutBB ......... %s' % bb.timeout)
+    # write_log(fid, '> costBB ............ %d' % costBB)
+    # write_log(fid, '> timeBB (secs) ..... %g' % toc)
 
     fid.close()
+
 
 if __name__ == '__main__':
     call_solvers(*sys.argv)

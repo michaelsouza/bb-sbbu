@@ -74,7 +74,7 @@ class TestBBPerm(unittest.TestCase):
         emin = p.minGT(15)
         self.assertEqual(emin, 18)
 
-    def test_start_from(self):        
+    def test_start_from(self):
         nmr = NMR('DATA_TEST/testC.nmr')
         E = nmr.E
         bb = BBPerm(E.keys())
@@ -111,6 +111,18 @@ class TestBBPerm(unittest.TestCase):
             self.assertEqual(len(order1), len(order2))
             for j in range(len(order1)):
                 self.assertEqual(order1[j], order2[j])
+
+class TestPriorityTree(unittest.TestCase):
+    def test_optimality(self):
+        wdir = 'DATA_TEST'
+        for fn in sorted(os.listdir(wdir)):
+            if not fn.endswith('.nmr'):
+                continue
+            nmr = NMR(os.path.join(wdir, fn))
+            p = PriorityTree(nmr)
+            order, cost = p.solve()
+            orderOPT, costOPT = order_brute(nmr)
+            self.assertEqual(costOPT, cost)
 
 
 if __name__ == '__main__':

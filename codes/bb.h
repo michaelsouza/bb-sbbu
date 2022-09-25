@@ -1,6 +1,7 @@
 #include <algorithm>
 #include <chrono>
 #include <climits>
+#include <cmath>
 #include <cstdio>
 #include <cstdlib>
 #include <fstream>
@@ -12,7 +13,6 @@
 #include <stdexcept>
 #include <string>
 #include <vector>
-#include <cmath>
 
 using weight_t = unsigned long long int;
 #define WEIGHT_MAX ( ULONG_LONG_MAX / 2 )
@@ -682,9 +682,9 @@ public:
          if ( C[ sid ] == 1 ) {
             const auto& s = m_S[ sid ];
             // reduce the relaxed cost
-            costRLX -= s.m_weight;            
-            // avoid overflow by not incrementing costEid, 
-            // if it's too large. the costEid will not be correctly 
+            costRLX -= s.m_weight;
+            // avoid overflow by not incrementing costEid,
+            // if it's too large. the costEid will not be correctly
             // calculated, but the eid will be pruned any way.
             if ( costUB >= costACC + costEid )
                costEid *= s.m_weight;
@@ -799,6 +799,217 @@ void write_log( FILE* fid, const char* fmt, ... ) {
    fflush( fid );
 }
 
+class PT {
+public:
+   std::vector<std::set<int>> m_preds;
+   std::vector<int> m_ordS;
+   NMR& m_nmr;
+   int m_niters;
+   std::map<int, NMRSegment>& m_S;
+   bool m_timeout;
+   std::vector<bool> m_b;
+   std::vector<int> m_p;
+   std::vector<int> m_Ek;
+   PT( NMR& nmr )
+       : m_nmr( nmr ), m_S( nmr.m_S ), m_b( nmr.m_nnodes, false ) {
+      
+      init_ordS( );
+      
+      // Ek[i]: num of uncovered segments of edge 'i'
+      m_Ek.resize( nmr.m_edges.size() + 1 );
+      for ( auto&& kv : nmr.m_E ) {
+         m_Ek[ kv.second.m_eid ] = kv.second.m_SID.size();
+      }
+
+      m_preds.resize( m_nmr.m_edges.size() + 1 );
+   }
+
+   void init_ordS( ) {
+      std::vector<NMREdge> E;
+      for ( auto& kv : m_nmr.m_E ) E.push_back( kv.second );
+      // ascend sort of edges by degree
+      std::sort( E.begin(), E.end(), []( const NMREdge& a, const NMREdge& b ) -> bool {
+         return a.m_SID.size() > b.m_SID.size();
+      } );
+      for ( auto& kv : m_nmr.m_E ) {
+         auto& e = kv.second;
+         std::vector<NMRSegment*> S;
+         // ascend sort of edge segments by degree
+         for ( auto&& sid : e.m_SID ) S.push_back( &m_nmr.m_S[ sid ] );
+         sort( S.begin(), S.end(), []( const NMRSegment* a, const NMRSegment* b ) -> bool {
+            return a->m_EID.size() > b->m_EID.size();
+         } );
+         for ( auto&& s : S )
+            if ( m_b[ s->m_sid ] == false ) {
+               m_b[ s->m_sid ] = true;
+               m_ordS.push_back( s->m_sid );
+            }
+      }
+      // restore m_b
+      for ( auto& sid : m_ordS ) m_b[ sid ] = false;
+   }
+
+   void predecessors( int eidA, std::vector<int>& p ) {
+      p.clear();
+      int i = 0;
+      for ( auto& eidB : m_preds[ eidA ] ) {
+         p.push_back( eidB );
+         m_b[ eidB ] = true;
+      }
+      while ( i < p.size() ) {
+         for ( auto& eidB : m_preds[ p[ i ] ] )
+            if ( m_b[ eidB ] == false ) {
+               m_b[ eidB ] = true;
+               p.push_back( eidB );
+            }
+         ++i;
+      }
+      sort( p.begin(), p.end() );
+      // restore m_b
+      for ( auto& eidB : p ) m_b[ eidB ] = false;
+   }
+
+   void available_edges( int sid, std::vector<int>& E ) {
+      E.clear();
+      auto& EID = m_S[ sid ].m_EID;
+      
+      if ( EID.size() == 1 ) {
+         E.push_back( EID[ 0 ] );
+         return;
+      }
+
+      for ( size_t i = 0; i < EID.size(); i++ ) {
+         const auto& eidA = EID[ i ];
+         if ( m_preds[ eidA ].size() == 0 ) {
+            E.push_back( eidA );
+            continue;
+         }
+         predecessors( eidA, m_p );
+         bool avail = true;
+         for ( size_t j = 0; j < EID.size(); j++ ) {
+            const auto& eidB = EID[ j ];
+            if ( eidA == eidB ) continue;
+            const auto it = std::lower_bound( m_p.begin(), m_p.end(), eidB );
+            if ( ( it < m_p.end() ) && ( *it ) == eidB ) {
+               avail = false;
+               break;
+            }
+         }
+         if ( avail ) E.push_back( eidA );
+      }
+   }
+
+   void add_precedence( int eidA, std::vector<int>& E, std::vector<std::pair<int, int>>& P ) {
+      for ( auto&& eidB : E ) {
+         if ( eidA == eidB ) continue;
+         P.push_back( std::make_pair( eidB, eidA ) );
+         m_preds[ eidB ].insert( eidA );
+      }
+   }
+
+   weight_t edge_cost( std::vector<int>& c_eid, int eid, weight_t costUB ) {
+      weight_t cost = 1;
+      for ( auto&& sid : m_nmr.m_E[ eid ].m_SID ) {
+         if ( c_eid[ sid ] == eid ) {
+            const auto& s = m_S[ sid ];
+            cost *= s.m_weight;
+            if ( cost >= costUB ) {
+               cost = costUB;
+               break;
+            }
+         }
+      }
+      return cost == 1 ? 0 : cost;
+   }
+
+   weight_t add_cost( int sid, std::vector<int>& c_eid, weight_t costUB ) {
+      weight_t cost = 0;
+      for ( auto& eid : m_S[ sid ].m_EID ) {
+         if ( m_Ek[ eid ] == 0 ) continue;
+         m_Ek[ eid ] -= 1;
+         if ( m_Ek[ eid ] == 0 && cost < costUB ) {
+            cost += edge_cost( c_eid, eid, costUB );
+         }
+      }
+      return cost;
+   }
+
+   void rem_precedence( std::vector<std::pair<int, int>>& P ) {
+      for ( const auto& p : P )
+         m_preds[ p.first ].erase( p.second );
+      P.clear();
+   }
+
+   weight_t rem_cost( int level, int sid, std::vector<weight_t>& costADD ) {
+      auto costREM = costADD[ level ];
+      costADD[ level ] = 0;
+      for ( const auto& eid : m_S[ sid ].m_EID )
+         ++m_Ek[ eid ];
+      return costREM;
+   }
+
+   void backtracking( int& level, std::vector<std::vector<int>>& E, std::vector<std::vector<std::pair<int, int>>>& P, std::vector<int>& c_idx, std::vector<int>& c_eid, weight_t& cost, std::vector<weight_t>& costADD ) {
+      while ( level >= 0 ) {
+         auto sid = m_ordS[ level ];
+         cost -= rem_cost( level, sid, costADD );
+         c_eid[ sid ] = -1;
+         if ( P[ level ].size() > 0 ) rem_precedence( P[ level ] );
+         if ( c_idx[ level ] < E[ level ].size() - 1 ) {
+            ++c_idx[ level ];
+            return;
+         }
+         E[ level ].clear();
+         c_idx[ level ] = 0;
+         --level;
+      }
+   }
+
+   weight_t solve( size_t tmax = 3600, bool verbose = false ) {
+      if ( verbose ) printf( "\n\nsolving %s\n", m_nmr.m_fnmr.c_str() );
+      m_niters = 0;
+      m_timeout = false;
+      auto tic = TIME_NOW();
+      std::vector<int> orderOPT;
+      weight_t costOPT = sbbuSolve( m_nmr, orderOPT );
+      auto costRELAX = costRelax( m_S );
+      // solution found
+      if ( costRELAX == costOPT ) return costOPT;
+      // c_eid[sid]: eid covering sid
+      std::vector<int> c_eid( m_nmr.m_segments.size() + 1 );
+      std::vector<int> c_idx( m_ordS.size(), 0 );
+      std::vector<weight_t> costADD( m_ordS.size(), 0 );
+      int level = 0, sid, eid;
+      weight_t cost = 0;
+      std::vector<std::vector<int>> E( m_ordS.size() );
+      std::vector<std::vector<std::pair<int, int>>> P( m_ordS.size() );
+      auto toc = ETS( tic );
+      while ( level >= 0 ) {
+         ++m_niters;
+         toc = ETS( tic );
+         if ( toc > tmax ) {
+            m_timeout = true;
+            printf( "> timeoutBB %ld seconds\n", toc );
+            break;
+         }
+         sid = m_ordS[ level ];
+         if ( E[ level ].size() == 0 ) available_edges( sid, E[ level ] );
+         eid = E[ level ][ c_idx[ level ] ];
+         c_eid[ sid ] = eid;
+         if ( E[ level ].size() >= 2 ) add_precedence( eid, E[ level ], P[ level ] );
+         costADD[ level ] = add_cost( sid, c_eid, costOPT );
+         cost += costADD[ level ];
+         // solution found
+         if ( cost < costOPT && level == ( m_ordS.size() - 1 ) ) costOPT = cost;
+         // next
+         if ( cost < costOPT && level < ( m_ordS.size() - 1 ) )
+            ++level;
+         else
+            backtracking( level, E, P, c_idx, c_eid, cost, costADD );
+      }
+      return costOPT;
+   }
+};
+
 int call_solvers( int argc, char* argv[] ) {
    std::string fnmr = "/home/michael/gitrepos/bb-sbbu/DATA_TEST/testC.nmr";
    size_t tmax = 3600;
@@ -851,7 +1062,7 @@ int call_solvers( int argc, char* argv[] ) {
    write_log( fid, "> costSBBU .......... %d\n", costSBBU );
    write_log( fid, "> timeSBBU (secs) ... %ld\n", toc );
 
-   // call order_bb if needed
+   // call order_bb
    BB bb( nmr );
    tic = TIME_NOW();
    auto costBB = bb.solve( tmax, verbose );
@@ -859,6 +1070,15 @@ int call_solvers( int argc, char* argv[] ) {
    write_log( fid, "> timeoutBB ......... %d\n", bb.m_timeout ? 1 : 0 );
    write_log( fid, "> costBB ............ %d\n", costBB );
    write_log( fid, "> timeBB (secs) ..... %ld\n", toc );
+
+   // call order_bb if needed
+   PT pt( nmr );
+   tic = TIME_NOW();
+   auto costPT = pt.solve( tmax, verbose );
+   toc = ETS( tic );
+   write_log( fid, "> timeoutPT ......... %d\n", pt.m_timeout ? 1 : 0 );
+   write_log( fid, "> costPT ............ %d\n", costPT );
+   write_log( fid, "> timePT (secs) ..... %ld\n", toc );
 
    fclose( fid );
 

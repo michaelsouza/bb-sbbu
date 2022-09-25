@@ -10,3 +10,7 @@ DATA_EPSD_00_DMAX_50/*.log
 DATA_EPSD_00_DMAX_60/*.log
 .~lock.results.xlsx#
 .gitignore
+args.txt
+results.xlsx
+profiling/bb.stats
+profiling/git_commit.txt
