@@ -5,6 +5,7 @@
 import os
 import sys
 import time
+import copy
 import pickle
 import numpy as np
 import networkx as nx
@@ -168,6 +169,28 @@ def order_brute(nmr: NMR):
             costOPT = c
             orderOPT = list(p).copy()
     return orderOPT, costOPT
+
+
+def order_greedy(nmr:NMR):
+    E, S = copy.deepcopy(nmr.E), copy.deepcopy(nmr.S)
+    order = []
+    while len(E) > 0:
+        minEid, minC = None, np.inf        
+        for eid in E:
+            e: NMREdge = E[eid]
+            c = 1
+            for sid in e.sid:
+                if sid in S:
+                    s: NMRSegment = S[sid]
+                    c *= s.weight
+            if c < minC:
+                minEid, minC = eid, c
+        order.append(minEid)
+        for sid in E[minEid].sid:
+            S.pop(sid, None)
+        E.pop(minEid)
+    return order, order_cost(order, nmr.E, nmr.S)
+
 
 
 def cost_relax(U, S):
@@ -553,6 +576,13 @@ def call_solvers(*argv):
 
     costRELAX = cost_relax(S, S)
     write_log(fid, '> costRELAX ......... %d' % costRELAX)
+
+    # call order_greedy
+    tic = time.time()
+    orderGREEDY, costGREEDY = order_greedy(nmr)
+    toc = time.time() - tic
+    write_log(fid, '> costGREEDY ........ %d' % costGREEDY)
+    write_log(fid, '> timeGREEDY (secs) . %g' % toc)
 
     # call order_sbbu
     tic = time.time()

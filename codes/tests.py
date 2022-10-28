@@ -5,6 +5,7 @@ import unittest
 from tkinter import SE
 from bb import *
 
+
 class TestNMR(unittest.TestCase):
     def test_segments(self):
         fnmr = 'DATA_TEST/testA.nmr'
@@ -18,7 +19,7 @@ class TestNMR(unittest.TestCase):
 
 
 class TestBB(unittest.TestCase):
-    def test_solveA(self):        
+    def test_solveA(self):
         nmr = NMR('DATA_TEST/testA.nmr')
         bb = BB(nmr)
         orderBB, costBB = bb.solve()
@@ -34,7 +35,7 @@ class TestBB(unittest.TestCase):
         nmr = NMR('DATA_TEST/testB.nmr')
         bb = BB(nmr)
         orderBB, costBB = bb.solve()
-        orderBB, costBF = order_brute(nmr)        
+        orderBB, costBF = order_brute(nmr)
         self.assertEqual(costBB, costBF)
         for i in range(len(nmr.E)):
             self.assertEqual(orderBB[i], orderBB[i])
@@ -43,7 +44,7 @@ class TestBB(unittest.TestCase):
         nmr = NMR('DATA_TEST/testC.nmr')
         bb = BB(nmr)
         orderBB, costBB = bb.solve()
-        orderBB, costBF = order_brute(nmr)        
+        orderBB, costBF = order_brute(nmr)
         self.assertEqual(costBB, costBF)
         for i in range(len(nmr.E)):
             self.assertEqual(orderBB[i], orderBB[i])
@@ -52,7 +53,7 @@ class TestBB(unittest.TestCase):
         nmr = NMR('DATA_TEST/testD.nmr')
         bb = BB(nmr)
         orderBB, costBB = bb.solve()
-        orderBB, costBF = order_brute(nmr)        
+        orderBB, costBF = order_brute(nmr)
         self.assertEqual(costBB, costBF)
         for i in range(len(nmr.E)):
             self.assertEqual(orderBB[i], orderBB[i])
@@ -61,15 +62,15 @@ class TestBB(unittest.TestCase):
         nmr = NMR('DATA_TEST/testE.nmr')
         bb = BB(nmr)
         orderBB, costBB = bb.solve()
-        orderBB, costBF = order_brute(nmr)        
+        orderBB, costBF = order_brute(nmr)
         self.assertEqual(costBB, costBF)
         for i in range(len(nmr.E)):
             self.assertEqual(orderBB[i], orderBB[i])
 
 
 class TestBBPerm(unittest.TestCase):
-    def test_minGT(self):                
-        E = {9,15,5,20,18,7}
+    def test_minGT(self):
+        E = {9, 15, 5, 20, 18, 7}
         p = BBPerm(E)
         emin = p.minGT(15)
         self.assertEqual(emin, 18)
@@ -112,6 +113,7 @@ class TestBBPerm(unittest.TestCase):
             for j in range(len(order1)):
                 self.assertEqual(order1[j], order2[j])
 
+
 class TestPriorityTree(unittest.TestCase):
     def test_optimality(self):
         wdir = 'DATA_TEST'
@@ -123,6 +125,16 @@ class TestPriorityTree(unittest.TestCase):
             order, cost = p.solve()
             orderOPT, costOPT = order_brute(nmr)
             self.assertEqual(costOPT, cost)
+
+
+class TestGreedy(unittest.TestCase):
+    def test_optimality(self):
+        wdir = 'DATA_TEST'
+        for c in ['A, B, C, D, E, F']:            
+            nmr = NMR(os.path.join(wdir, 'test%s.nmr' % c))
+            orderBF, costBF = order_brute(nmr)
+            orderGD, costGD = order_greedy(nmr)
+            self.assertEqual(costBF, costGD)
 
 
 if __name__ == '__main__':

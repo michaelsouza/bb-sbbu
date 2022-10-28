@@ -136,3 +136,21 @@ TEST( PT, testCostOptimality ) {
    EXPECT_EQ( compareBruteWithPT( "../DATA_TEST/testE.nmr" ), 164 );
    EXPECT_EQ( compareBruteWithPT( "../DATA_TEST/testF.nmr" ), 0 );
 }
+
+void compareBruteWithGreedy( std::string fnmr ) {
+   NMR nmr( fnmr );
+   PT pt( nmr );
+   std::vector<int> orderOPT;
+   auto costBF = bruteSolve( nmr, orderOPT );
+   auto costGD = greedySolve( nmr, orderOPT );
+   EXPECT_EQ( costBF, costGD );
+}
+
+TEST( greedySolve, testCostOptimality ) {
+   compareBruteWithGreedy( "../DATA_TEST/testA.nmr" );
+   compareBruteWithGreedy( "../DATA_TEST/testB.nmr" );
+   compareBruteWithGreedy( "../DATA_TEST/testC.nmr" );
+   compareBruteWithGreedy( "../DATA_TEST/testD.nmr" );
+   compareBruteWithGreedy( "../DATA_TEST/testE.nmr" );
+   compareBruteWithGreedy( "../DATA_TEST/testF.nmr" );
+}

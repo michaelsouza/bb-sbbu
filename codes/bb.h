@@ -28,7 +28,7 @@ public:
    int m_sid;
    int m_i;
    int m_j;
-   weight_t m_weight;
+   weight_t m_weight; // weight = 2^{j - i + 1}
    std::vector<int> m_EID;
 
    NMRSegment() {
@@ -126,8 +126,8 @@ public:
    std::vector<NMREdge> m_edges;
    std::vector<NMREdge> m_pruneEdges;
    std::vector<NMRSegment> m_segments;
-   std::map<int, NMREdge> m_E;
-   std::map<int, NMRSegment> m_S;
+   std::map<int, NMREdge> m_E;    // map of the prune edges
+   std::map<int, NMRSegment> m_S; // map of the segments
 
    NMR( std::string fnmr ) {
       m_fnmr = fnmr;
@@ -155,7 +155,7 @@ public:
       m_nnodes = 0;
       for ( auto&& e : m_edges ) {
          if ( m_nnodes < e.m_j ) m_nnodes = e.m_j;
-         if ( e.m_j > e.m_i + 3 ) m_pruneEdges.push_back( e );
+         if ( e.m_j >= e.m_i + 3 ) m_pruneEdges.push_back( e );
       }
       setSegments();
       setOrderingData();
@@ -1009,6 +1009,40 @@ public:
       return costOPT;
    }
 };
+
+weight_t greedySolve( NMR& nmr, std::vector<int>& order ) {
+   auto E( nmr.m_E );
+   auto S( nmr.m_S );
+
+   order.clear();
+   while ( E.size() > 0 ) {
+      int minEid = 0;
+      weight_t minCost = WEIGHT_MAX;
+      // find the edge with the minimum cost
+      for ( auto kv : E ) {
+         const auto eid = kv.first;
+         const auto e = kv.second;
+         weight_t cost = 1;
+         for ( auto sid : e.m_SID ) {
+            auto s = S.find( sid );
+            if ( s != S.end() ) cost *= s->second.m_weight;
+         }
+         // update minimum cost edge
+         if ( cost < minCost ) {
+            minCost = cost;
+            minEid = eid;
+         }
+      }
+      // add to order
+      order.push_back( minEid );
+
+      // update S and E by removing eid and the associated segments
+      for ( auto sid : E[ minEid ].m_SID ) S.erase( sid );
+      E.erase( minEid );
+   }
+
+   return costOrder( order, nmr.m_E, nmr.m_S );
+}
 
 int call_solvers( int argc, char* argv[] ) {
    std::string fnmr = "/home/michael/gitrepos/bb-sbbu/DATA_TEST/testC.nmr";
