@@ -62,7 +62,7 @@ class NMREdge:
 
 
 class NMR:
-    def __init__(self, fnmr) -> None:
+    def __init__(self, fnmr: str) -> None:
         self.fnmr = fnmr
         NMREdge.resetEID()
         self.edges = []

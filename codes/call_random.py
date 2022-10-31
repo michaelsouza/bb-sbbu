@@ -4,7 +4,7 @@ import numpy as np
 from bb import order_brute, order_greedy, NMR
 
 if __name__ == '__main__':
-    nnodes, nedges = 20, 3
+    nnodes, nedges = 20, 5
     nsamples = 1000
     np.random.seed(1)
     MESSAGE = []
