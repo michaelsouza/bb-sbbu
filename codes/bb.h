@@ -73,7 +73,7 @@ public:
 
    bool operator==( NMRSegment const& rhs ) const {
       return m_i == rhs.m_i && m_j == rhs.m_j;
-   }
+   }   
 };
 
 int NMRSegment::SID;
@@ -159,6 +159,7 @@ public:
       }
       setSegments();
       setOrderingData();
+      simplifying();
    }
 
 private:
@@ -212,21 +213,33 @@ private:
 
    void simplifying() {
       for ( auto&& kv : m_S ) {
-         std::vector<int> R;
-         auto s = kv.second;
+         std::vector<int> K;
+         auto& s = kv.second;
          for ( auto&& eidA : s.m_EID ) {
-            auto a = m_E[ eidA ];
+            auto& a = m_E[ eidA ];
+            bool keepA = true;
             for ( auto&& eidB : s.m_EID ) {
                if ( eidA == eidB ) continue;
-               auto b = m_E[ eidB ];
+               auto& b = m_E[ eidB ];
                // a contains b, then b precedes a
                if ( a.m_i <= b.m_i && b.m_j <= a.m_j ) {
-                  R.push_back( eidA );
+                  keepA = false;
                   break;
                }
             }
+            if ( keepA ) K.push_back( eidA );
          }
-         
+         // update segment
+         s.m_EID = K;         
+      }
+      // update edges
+      for ( auto&& kv : m_E ) kv.second.m_SID.clear();
+      for ( auto&& kv : m_S ) {
+         auto& s = kv.second;
+         for ( auto&& eid : s.m_EID ) {
+            auto& e = m_E[ eid ];
+            e.m_SID.push_back( s.m_sid );
+         }
       }
    }
 };
