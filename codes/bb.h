@@ -209,7 +209,28 @@ private:
       for ( auto&& s : m_segments )
          m_S[ s.m_sid ] = s;
    }
+
+   void simplifying() {
+      for ( auto&& kv : m_S ) {
+         std::vector<int> R;
+         auto s = kv.second;
+         for ( auto&& eidA : s.m_EID ) {
+            auto a = m_E[ eidA ];
+            for ( auto&& eidB : s.m_EID ) {
+               if ( eidA == eidB ) continue;
+               auto b = m_E[ eidB ];
+               // a contains b, then b precedes a
+               if ( a.m_i <= b.m_i && b.m_j <= a.m_j ) {
+                  R.push_back( eidA );
+                  break;
+               }
+            }
+         }
+         
+      }
+   }
 };
+
 
 weight_t costOrder( std::vector<int>& order, std::map<int, NMREdge>& E, std::map<int, NMRSegment>& S, weight_t costUB = WEIGHT_MAX ) {
    weight_t total_cost = 0; // total cost
