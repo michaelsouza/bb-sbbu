@@ -104,15 +104,16 @@ auto compareBruteWithBB( std::string fnmr ) {
    BB bb( nmr );
    std::vector<int> orderOPT;
    auto costOPT = bruteSolve( nmr, orderOPT );
-   auto costBB = bb.solve( 3600, false );
+   auto costBB = bb.solve( 3600, 1 );
+   printf( "%s\n", fnmr.c_str() );
    EXPECT_EQ( costOPT, costBB );
    return bb.m_niters;
 }
 
-TEST( BB, testCostOptimality ) {   
+TEST( BB, testCostOptimality ) {
    EXPECT_EQ( compareBruteWithBB( "../DATA_TEST/testA.nmr" ), 5 );
    EXPECT_EQ( compareBruteWithBB( "../DATA_TEST/testB.nmr" ), 9 );
-   EXPECT_EQ( compareBruteWithBB( "../DATA_TEST/testC.nmr" ), 12 );
+   EXPECT_EQ( compareBruteWithBB( "../DATA_TEST/testC.nmr" ), 19 );
    EXPECT_EQ( compareBruteWithBB( "../DATA_TEST/testD.nmr" ), 22 );
    EXPECT_EQ( compareBruteWithBB( "../DATA_TEST/testE.nmr" ), 29 );
    EXPECT_EQ( compareBruteWithBB( "../DATA_TEST/testF.nmr" ), 0 );
@@ -131,9 +132,9 @@ auto compareBruteWithPT( std::string fnmr ) {
 TEST( PT, testCostOptimality ) {
    EXPECT_EQ( compareBruteWithPT( "../DATA_TEST/testA.nmr" ), 7 );
    EXPECT_EQ( compareBruteWithPT( "../DATA_TEST/testB.nmr" ), 21 );
-   EXPECT_EQ( compareBruteWithPT( "../DATA_TEST/testC.nmr" ), 52 );
-   EXPECT_EQ( compareBruteWithPT( "../DATA_TEST/testD.nmr" ), 76 );
-   EXPECT_EQ( compareBruteWithPT( "../DATA_TEST/testE.nmr" ), 164 );
+   EXPECT_EQ( compareBruteWithPT( "../DATA_TEST/testC.nmr" ), 46 );
+   EXPECT_EQ( compareBruteWithPT( "../DATA_TEST/testD.nmr" ), 34 );
+   EXPECT_EQ( compareBruteWithPT( "../DATA_TEST/testE.nmr" ), 38 );
    EXPECT_EQ( compareBruteWithPT( "../DATA_TEST/testF.nmr" ), 0 );
 }
 
