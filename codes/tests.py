@@ -8,11 +8,15 @@ from bb import *
 
 class TestNMR(unittest.TestCase):
     def test_segments(self):
-        fnmr = 'DATA_TEST/testA.nmr'
+        fnmr = "DATA_TEST/testA.nmr"
         nmr = NMR(fnmr)
         S = nmr.segments
-        Sans = [NMRSegment(4, 5), NMRSegment(6, 10),
-                NMRSegment(11, 15), NMRSegment(18, 20)]
+        Sans = [
+            NMRSegment(4, 5),
+            NMRSegment(6, 10),
+            NMRSegment(11, 15),
+            NMRSegment(18, 20),
+        ]
         self.assertEqual(len(S), len(Sans))
         for i in range(len(S)):
             self.assertTrue(S[i] == Sans[i])
@@ -20,7 +24,7 @@ class TestNMR(unittest.TestCase):
 
 class TestBB(unittest.TestCase):
     def test_solveA(self):
-        nmr = NMR('DATA_TEST/testA.nmr')
+        nmr = NMR("DATA_TEST/testA.nmr")
         bb = BB(nmr)
         orderBB, costBB = bb.solve()
         self.assertEqual(costBB, 168)
@@ -32,7 +36,7 @@ class TestBB(unittest.TestCase):
         self.assertLess(id1, id2)
 
     def test_solveB(self):
-        nmr = NMR('DATA_TEST/testB.nmr')
+        nmr = NMR("DATA_TEST/testB.nmr")
         bb = BB(nmr)
         orderBB, costBB = bb.solve()
         orderBB, costBF = order_brute(nmr)
@@ -41,7 +45,7 @@ class TestBB(unittest.TestCase):
             self.assertEqual(orderBB[i], orderBB[i])
 
     def test_solveC(self):
-        nmr = NMR('DATA_TEST/testC.nmr')
+        nmr = NMR("DATA_TEST/testC.nmr")
         bb = BB(nmr)
         orderBB, costBB = bb.solve()
         orderBB, costBF = order_brute(nmr)
@@ -50,7 +54,7 @@ class TestBB(unittest.TestCase):
             self.assertEqual(orderBB[i], orderBB[i])
 
     def test_solveD(self):
-        nmr = NMR('DATA_TEST/testD.nmr')
+        nmr = NMR("DATA_TEST/testD.nmr")
         bb = BB(nmr)
         orderBB, costBB = bb.solve()
         orderBB, costBF = order_brute(nmr)
@@ -59,7 +63,7 @@ class TestBB(unittest.TestCase):
             self.assertEqual(orderBB[i], orderBB[i])
 
     def test_solveE(self):
-        nmr = NMR('DATA_TEST/testE.nmr')
+        nmr = NMR("DATA_TEST/testE.nmr")
         bb = BB(nmr)
         orderBB, costBB = bb.solve()
         orderBB, costBF = order_brute(nmr)
@@ -76,7 +80,7 @@ class TestBBPerm(unittest.TestCase):
         self.assertEqual(emin, 18)
 
     def test_start_from(self):
-        nmr = NMR('DATA_TEST/testC.nmr')
+        nmr = NMR("DATA_TEST/testC.nmr")
         E = nmr.E
         bb = BBPerm(E.keys())
         # warming up BB
@@ -116,9 +120,9 @@ class TestBBPerm(unittest.TestCase):
 
 class TestPriorityTree(unittest.TestCase):
     def test_optimality(self):
-        wdir = 'DATA_TEST'
+        wdir = "DATA_TEST"
         for fn in sorted(os.listdir(wdir)):
-            if not fn.endswith('.nmr'):
+            if not fn.endswith(".nmr"):
                 continue
             nmr = NMR(os.path.join(wdir, fn))
             p = PriorityTree(nmr)
@@ -129,13 +133,13 @@ class TestPriorityTree(unittest.TestCase):
 
 class TestGreedy(unittest.TestCase):
     def test_optimality(self):
-        wdir = 'DATA_TEST'
-        for c in ['A, B, C, D, E, F']:            
-            nmr = NMR(os.path.join(wdir, 'test%s.nmr' % c))
+        wdir = "DATA_TEST"
+        for c in ["A", "B", "C", "D", "E", "F"]:
+            nmr = NMR(os.path.join(wdir, "test%s.nmr" % c))
             orderBF, costBF = order_brute(nmr)
             orderGD, costGD = order_greedy(nmr)
             self.assertEqual(costBF, costGD)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()
