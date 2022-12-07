@@ -104,7 +104,7 @@ auto compareBruteWithBB( std::string fnmr ) {
    BB bb( nmr );
    std::vector<int> orderOPT;
    auto costOPT = bruteSolve( nmr, orderOPT );
-   auto costBB = bb.solve( 3600, 1 );
+   auto costBB = bb.solve( 3600, false );
    printf( "%s\n", fnmr.c_str() );
    EXPECT_EQ( costOPT, costBB );
    return bb.m_niters;
