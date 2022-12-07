@@ -582,15 +582,15 @@ def call_solvers(*argv):
     tic = time.time()
     orderGREEDY, costGREEDY = order_greedy(nmr)
     toc = time.time() - tic
-    write_log(fid, '> costGREEDY ........ %d' % costGREEDY)
-    write_log(fid, '> timeGREEDY (secs) . %g' % toc)
+    write_log(fid, '> costGD ............ %d' % costGREEDY)
+    write_log(fid, '> timeGD (secs) ..... %g' % toc)
 
     # call order_sbbu
     tic = time.time()
     orderSBBU, costSBBU = order_sbbu(nmr)
     toc = time.time() - tic
-    write_log(fid, '> costSBBU .......... %d' % costSBBU)
-    write_log(fid, '> timeSBBU (secs) ... %g' % toc)
+    write_log(fid, '> costSB ............ %d' % costSBBU)
+    write_log(fid, '> timeSB (secs) ..... %g' % toc)
 
     # call priority_tree
     tic = time.time()
