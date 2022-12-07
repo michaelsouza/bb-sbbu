@@ -486,7 +486,8 @@ class PriorityTree:
             level -= 1
         return level if level >= 0 else None, cost
 
-    def save_order(self, c_eid):
+    def save_order(self, c_eid:dict):
+        '''Convert from c_eid (dict) to self.order (list)'''
         self.order = np.unique([c_eid[sid] for sid in c_eid])
         # remove all nodes with zero degree
         d = dict(self.G.degree())
