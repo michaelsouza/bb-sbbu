@@ -11,10 +11,11 @@ parallel -j 10 < callBB.sh
 # Development tools
 
 - Visual Studio Code (IDE)
-- GCC, the GNU Compiler Collection (compiler)
+- GCC, the GNU Compiler Collection (Compiler)
 - GoogleTest (xUnit test framework)
 - CMake (Build Framework)
-- Git (control version)
+- Git (Control Version)
+- Black (Python Formatter)
 
 # Build Release version
 
@@ -43,3 +44,4 @@ Run the unit tests.
 # References
 1. https://blog.ronin.cloud/gnu-parallel/
 2. https://google.github.io/googletest/quickstart-cmake.html
+3. https://github.com/psf/black
