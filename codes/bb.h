@@ -628,7 +628,7 @@ public:
 
       const auto eidOld = remOrd();
       const auto eid = eidMinGT( eidOld );
-      if ( eid < 1 || m_nUncSID[ eid ] == 0 ) {
+      if ( eid < 1 ) {
          return next();
       }
       addOrd( eid );
@@ -733,9 +733,8 @@ public:
       if ( verbose ) printf( "\n\nsolving %s\n", m_nmr.m_fnmr.c_str() );
       m_niters = 0;
       auto tic = TIME_NOW();
-      weight_t costUB = WEIGHT_MAX;
       std::vector<int> orderOPT;
-      costUB = sbbuSolve( m_nmr, orderOPT );
+      weight_t costUB = sbbuSolve( m_nmr, orderOPT );
 
       // init m_order
       std::fill( m_ord.begin(), m_ord.end(), -1 );
@@ -1120,15 +1119,15 @@ int call_solvers( int argc, char* argv[] ) {
    for ( auto&& kv : S ) U.insert( kv.first );
 
    auto costRELAX = costRelax( U, S );
-   write_log( fid, "> costRELAX ......... %d\n", costRELAX );
+   write_log( fid, "> costRX .......... %d\n", costRELAX );
 
    // call order_sbbu
    std::vector<int> orderSBBU;
    auto tic = TIME_NOW();
    auto costSBBU = sbbuSolve( nmr, orderSBBU );
    auto toc = ETS( tic );
-   write_log( fid, "> costSBBU .......... %d\n", costSBBU );
-   write_log( fid, "> timeSBBU (secs) ... %ld\n", toc );
+   write_log( fid, "> costSB .......... %d\n", costSBBU );
+   write_log( fid, "> timeSB (secs) ... %ld\n", toc );
 
    // call order_bb
    BB bb( nmr );
@@ -1139,7 +1138,7 @@ int call_solvers( int argc, char* argv[] ) {
    write_log( fid, "> costBB ............ %d\n", costBB );
    write_log( fid, "> timeBB (secs) ..... %ld\n", toc );
 
-   // call order_bb if needed
+   // call order_pt if needed
    PT pt( nmr );
    tic = TIME_NOW();
    auto costPT = pt.solve( tmax, verbose );
