@@ -576,7 +576,7 @@ def call_solvers(*argv):
     write_log(fid, '> lenS .............. %d' % len(S))
 
     costRELAX = cost_relax(S, S)
-    write_log(fid, '> costRELAX ......... %d' % costRELAX)
+    write_log(fid, '> costRX ............ %d' % costRELAX)
 
     # call order_greedy
     tic = time.time()

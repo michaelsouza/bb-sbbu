@@ -311,12 +311,25 @@ weight_t bruteSolve( NMR& nmr, std::vector<int>& orderOPT ) {
    return costOPT;
 }
 
+/**
+ * @brief Calculate the relaxed cost of the sid's in U.
+ * 
+ * @param U Subset of sid's to be considered on the relaxed cost.
+ * @param S Map of all sid's.
+ * @return weight_t 
+ */
 weight_t costRelax( std::set<int>& U, std::map<int, NMRSegment>& S ) {
    weight_t costTotal = 0;
    for ( auto&& sid : U ) costTotal += S[ sid ].m_weight;
    return costTotal;
 }
 
+/**
+ * @brief Calculate the relaxed cost of all sid's in S.
+ * 
+ * @param S Map of all sid's.
+ * @return weight_t 
+ */
 weight_t costRelax( std::map<int, NMRSegment>& S ) {
    weight_t costTotal = 0;
    for ( auto&& kv : S )
@@ -1077,7 +1090,7 @@ weight_t greedySolve( NMR& nmr, std::vector<int>& order ) {
    return costOrder( order, nmr.m_E, nmr.m_S );
 }
 
-int call_solvers( int argc, char* argv[] ) {
+int callSolvers( int argc, char* argv[] ) {
    std::string fnmr = "/home/michael/gitrepos/bb-sbbu/DATA_TEST/testC.nmr";
    size_t tmax = 3600;
    bool clean_log = false;
@@ -1108,44 +1121,44 @@ int call_solvers( int argc, char* argv[] ) {
    auto& E = nmr.m_E;
    auto& S = nmr.m_S;
 
-   write_log( fid, "> verbose ........... %d\n", verbose ? 1 : 0 );
-   write_log( fid, "> clean_log ......... %d\n", clean_log ? 1 : 0 );
-   write_log( fid, "> tmax (secs) ....... %ld\n", tmax );
-   write_log( fid, "> nnodes ............ %d\n", nmr.m_nnodes );
-   write_log( fid, "> lenE .............. %d\n", E.size() );
-   write_log( fid, "> lenS .............. %d\n", S.size() );
+   write_log( fid, "> verbose ......... %d\n", verbose ? 1 : 0 );
+   write_log( fid, "> clean_log ....... %d\n", clean_log ? 1 : 0 );
+   write_log( fid, "> tmax (secs) ..... %ld\n", tmax );
+   write_log( fid, "> nnodes .......... %d\n", nmr.m_nnodes );
+   write_log( fid, "> lenE ............ %d\n", E.size() );
+   write_log( fid, "> lenS ............ %d\n", S.size() );
 
    std::set<int> U;
    for ( auto&& kv : S ) U.insert( kv.first );
 
-   auto costRELAX = costRelax( U, S );
-   write_log( fid, "> costRX .......... %d\n", costRELAX );
+   auto costRX = costRelax( U, S );
+   write_log( fid, "> costRX .......... %d\n", costRX );
 
    // call order_sbbu
    std::vector<int> orderSBBU;
    auto tic = TIME_NOW();
-   auto costSBBU = sbbuSolve( nmr, orderSBBU );
+   auto costSB = sbbuSolve( nmr, orderSBBU );
    auto toc = ETS( tic );
-   write_log( fid, "> costSB .......... %d\n", costSBBU );
+   write_log( fid, "> costSB .......... %d\n", costSB );
    write_log( fid, "> timeSB (secs) ... %ld\n", toc );
 
    // call order_bb
    BB bb( nmr );
    tic = TIME_NOW();
-   auto costBB = bb.solve( tmax > 60 ? 60 : tmax, verbose );
+   auto costBB = bb.solve( tmax, verbose );
    toc = ETS( tic );
-   write_log( fid, "> timeoutBB ......... %d\n", bb.m_timeout ? 1 : 0 );
-   write_log( fid, "> costBB ............ %d\n", costBB );
-   write_log( fid, "> timeBB (secs) ..... %ld\n", toc );
+   write_log( fid, "> timeoutBB ....... %d\n", bb.m_timeout ? 1 : 0 );
+   write_log( fid, "> costBB .......... %d\n", costBB );
+   write_log( fid, "> timeBB (secs) ... %ld\n", toc );
 
    // call order_pt if needed
    PT pt( nmr );
    tic = TIME_NOW();
    auto costPT = pt.solve( tmax, verbose );
    toc = ETS( tic );
-   write_log( fid, "> timeoutPT ......... %d\n", pt.m_timeout ? 1 : 0 );
-   write_log( fid, "> costPT ............ %d\n", costPT );
-   write_log( fid, "> timePT (secs) ..... %ld\n", toc );
+   write_log( fid, "> timeoutPT ....... %d\n", pt.m_timeout ? 1 : 0 );
+   write_log( fid, "> costPT .......... %d\n", costPT );
+   write_log( fid, "> timePT (secs) ... %ld\n", toc );
 
    fclose( fid );
 

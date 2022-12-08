@@ -2,5 +2,5 @@
 
 int main( int argc, char* argv[] )
 {
-   return call_solvers( argc, argv );
+   return callSolvers( argc, argv );
 }

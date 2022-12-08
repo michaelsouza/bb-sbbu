@@ -4,6 +4,14 @@ import tqdm
 import multiprocessing as mp
 
 WDIR = ['DATA_EPSD_00_DMAX_50', 'DATA_EPSD_00_DMAX_60']
+# WDIR = ['DATA_TEST']
+
+for wdir in WDIR:
+    print('Cleaning wdir=%s' % wdir)
+    for fn in os.listdir(wdir):
+        fn = os.path.join(wdir, fn)
+        if fn.endswith('.log'):
+            os.remove(fn)
 
 # default parameters
 tmax = 3600
