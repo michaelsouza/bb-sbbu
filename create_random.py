@@ -2,7 +2,8 @@ import os
 import tqdm
 import numpy as np
 import networkx as nx
-from bb import order_brute, order_greedy, NMR
+from codes.bb import order_brute, order_greedy, NMR
+
 
 if __name__ == "__main__":
     nnodes, nedges = 20, 5

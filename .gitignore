@@ -16,3 +16,5 @@ profiling/bb.stats
 profiling/git_commit.txt
 vtune/bb/r*
 DATA_TEST/testRAND_*
+data/backbones/*
+data/pdb/*
