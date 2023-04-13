@@ -3,6 +3,7 @@ import pandas as pd
 from tqdm import tqdm
 from prody import parsePDB
 from prody.proteins.localpdb import fetchPDB, pathPDBFolder
+from scipy.spatial import KDTree
 
 
 def extract_backbones(backbones_folder: str, pdb_id: str):
@@ -66,45 +67,39 @@ def create_nmr(nmr_folder, backbone_file: str, dmax: int):
     # reset the index
     atoms.reset_index(drop=True, inplace=True)
 
-    E = [] # list of edges
-    for i in range(len(atoms)):
-        for j in range(i+1, len(atoms)):
-            # compute the distance between the two atoms
-            atom_i = atoms.loc[i] # get the i-th atom
-            atom_j = atoms.loc[j] # get the j-th atom
-            # compute the distance
-            dist = ((atom_i['x'] - atom_j['x'])**2 + 
-                    (atom_i['y'] - atom_j['y'])**2 + 
-                    (atom_i['z'] - atom_j['z'])**2)**0.5
-            # add the edge if the distance is less than dmax or the difference j - i is less than 3
-            if (dist <= dmax) or (j - i <= 3):
-                # add the edge to the list
-                edge = {
-                    'i': i,
-                    'j': j,
-                    'dist': dist,
-                    'name_i': atom_i['atom_name'],
-                    'name_j': atom_j['atom_name'],
-                    'residue_i': atom_i['residue_name'],
-                    'residue_j': atom_j['residue_name'],
-                }
-                E.append(edge)
+    # append the edges where d(i,j) <= dmax
+    coords = atoms[['x', 'y', 'z']].values
+    kdt = KDTree(coords, leafsize=10)
+    E = kdt.query_pairs(dmax, output_type='set', p=2.0)
+
+    # append the edges (i,j), when  (j-3) <= i < j
+    for j in range(3, len(atoms)):
+        for i in range(j - 3, j):
+            E.add((i, j))
+
+    # sort the edges
+    E = sorted(list(E))
 
     # create the dataframe with the edges
     nmr_file = os.path.basename(backbone_file).split('.')[0]
     nmr_file = os.path.join(nmr_folder, f'{nmr_file}_dmax_{dmax}.nmr')
     with open(nmr_file, 'w') as fd:
         fmt = '%4d %4d %.16e %.16e %4s %4s %5s %5s\n'
-        for edge in E:
+        for i, j in E:
+            atom_i = atoms.iloc[i]
+            atom_j = atoms.iloc[j]
+            dij = ((atom_i['x'] - atom_j['x']) ** 2 +
+                   (atom_i['y'] - atom_j['y']) ** 2 +
+                   (atom_i['z'] - atom_j['z']) ** 2) ** 0.5
             edge = (
-                edge["i"] + 1,
-                edge["j"] + 1,
-                edge["dist"],
-                edge["dist"],
-                edge["name_i"],
-                edge["name_j"],
-                edge["residue_i"],
-                edge["residue_j"]
+                i + 1,
+                j + 1,
+                dij,
+                dij,
+                atom_i['atom_name'],
+                atom_j['atom_name'],
+                atom_i['residue_name'],
+                atom_j['residue_name']
             )
             edge = fmt % edge
             fd.write(edge)
