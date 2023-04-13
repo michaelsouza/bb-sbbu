@@ -45,7 +45,7 @@ def get_command_lines(FNMR: str, tmax: int, dump_only: bool):
         CMD.append(cmd)
 
     # write all cmd to file
-    with open('runAll.cmd', 'w') as fd:
+    with open('run_all.cmd', 'w') as fd:
         fd.write('\n'.join(CMD))
 
     return CMD
