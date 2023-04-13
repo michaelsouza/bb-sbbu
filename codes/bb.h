@@ -83,10 +83,10 @@ private:
    static int EID; // class static variable
 
 public:
-   int m_eid;
+   int m_eid; // edge id
    int m_i;
    int m_j;
-   std::vector<int> m_SID;
+   std::vector<int> m_SID; // segment ids to which this edge belongs
 
    NMREdge() {
       m_eid = -1;
@@ -155,11 +155,74 @@ public:
       m_nnodes = 0;
       for ( auto&& e : m_edges ) {
          if ( m_nnodes < e.m_j ) m_nnodes = e.m_j;
-         if ( e.m_j >= e.m_i + 3 ) m_pruneEdges.push_back( e );
+         if ( e.m_j > e.m_i + 3 ) m_pruneEdges.push_back( e );
       }
       setSegments();
       setOrderingData();
       simplifying();
+   }
+
+   void dump() {
+      auto fdmp = m_fnmr;
+      // replace .nmr with .dmp
+      size_t pos = fdmp.find( ".nmr" );
+      if ( pos != std::string::npos ) {
+         fdmp.replace( pos, 4, ".dmp" );
+      }
+
+      std::ofstream ofs( fdmp );
+      ofs << "fnmr: " << m_fnmr << std::endl;
+      ofs << "nnodes: " << m_nnodes << std::endl;
+      ofs << "nedges: " << m_edges.size() << std::endl;
+      ofs << "npruneEdges: " << m_pruneEdges.size() << std::endl;
+      ofs << "nsegments: " << m_segments.size() << std::endl;
+
+      ofs << "edges [eid i j]: " << std::endl;
+      for ( const auto& edge : m_edges ) {
+         ofs << "\t" << edge.m_eid << " " << edge.m_i << " " << edge.m_j << " ";
+         for ( const auto& sid : edge.m_SID ) {
+            ofs << sid << " ";
+         }
+         ofs << std::endl;
+      }
+
+      ofs << "pruneEdges [eid i j SID]: " << std::endl;
+      for ( const auto& edge : m_pruneEdges ) {
+         ofs << "\t" << edge.m_eid << " " << edge.m_i << " " << edge.m_j << " ";
+         for ( const auto& sid : edge.m_SID ) {
+            ofs << sid << " ";
+         }
+         ofs << std::endl;
+      }
+
+      ofs << "segments [sid i j weight EID]: " << std::endl;
+      for ( const auto& segment : m_segments ) {
+         ofs << "\t" << segment.m_sid << " " << segment.m_i << " " << segment.m_j << " " << segment.m_weight << " ";
+         for ( const auto& eid : segment.m_EID ) {
+            ofs << eid << " ";
+         }
+         ofs << std::endl;
+      }
+
+      ofs << "E [idx eid i j SID]: " << std::endl;
+      for ( const auto& e : m_E ) {
+         ofs << "\t" << e.first << " " << e.second.m_eid << " " << e.second.m_i << " " << e.second.m_j << " ";
+         for ( const auto& sid : e.second.m_SID ) {
+            ofs << sid << " ";
+         }
+         ofs << std::endl;
+      }
+
+      ofs << "S [idx sid i j EID]: " << std::endl;
+      for ( const auto& s : m_S ) {
+         ofs << "\t" << s.first << " " << s.second.m_sid << " " << s.second.m_i << " " << s.second.m_j << " " << s.second.m_weight << " ";
+         for ( const auto& eid : s.second.m_EID ) {
+            ofs << eid << " ";
+         }
+         ofs << std::endl;
+      }
+
+      ofs.close();
    }
 
 private:
@@ -173,7 +236,7 @@ private:
       std::sort( I.begin(), I.end() );
       I.erase( std::unique( I.begin(), I.end() ), I.end() );
 
-      // E[i]: set of the eid's of the edges covering atom 'i'
+      // E[i]: set of the eid's of the prunning edges covering atom 'i'
       std::map<int, std::set<int>> E;
       for ( auto&& i : I ) E[ i ] = {};
 
@@ -188,10 +251,12 @@ private:
             if ( E[ s_i ] == E[ j ] )
                s_j = j;
             else {
+               // push new segment
                m_segments.push_back( NMRSegment( s_i, s_j ) );
-               s_i = s_j = j;
+               s_i = s_j = j; // start new segment
             }
          }
+         // push the last segment
          m_segments.push_back( NMRSegment( s_i, s_j ) );
       }
 
@@ -1095,15 +1160,23 @@ int callSolvers( int argc, char* argv[] ) {
    size_t tmax = 3600;
    bool clean_log = false;
    bool verbose = false;
+   bool dump = false;
+
    for ( int i = 0; i < argc; ++i ) {
       auto arg = argv[ i ];
       if ( strcmp( arg, "-fnmr" ) == 0 ) fnmr = argv[ i + 1 ];
       if ( strcmp( arg, "-tmax" ) == 0 ) tmax = atoi( argv[ i + 1 ] );
       if ( strcmp( arg, "-clean_log" ) == 0 ) clean_log = true;
       if ( strcmp( arg, "-verbose" ) == 0 ) verbose = true;
+      if ( strcmp( arg, "-dump" ) == 0 ) dump = true;
    }
 
-   auto flog = std::regex_replace( fnmr, std::regex( ".nmr" ), ".log" );
+   auto flog = fnmr;
+   size_t pos = flog.find( ".nmr" );
+   if ( pos != std::string::npos ) {
+      flog.replace( pos, 4, ".log" );
+   }
+
    // check if already has a log file
    if ( !clean_log && exists( flog ) ) {
       printf( "> skip (already solved) %s\n", fnmr.c_str() );
@@ -1123,10 +1196,14 @@ int callSolvers( int argc, char* argv[] ) {
 
    write_log( fid, "> verbose ......... %d\n", verbose ? 1 : 0 );
    write_log( fid, "> clean_log ....... %d\n", clean_log ? 1 : 0 );
+   write_log( fid, "> dump ............ %d\n", dump ? 1 : 0 );
    write_log( fid, "> tmax (secs) ..... %ld\n", tmax );
    write_log( fid, "> nnodes .......... %d\n", nmr.m_nnodes );
    write_log( fid, "> lenE ............ %d\n", E.size() );
    write_log( fid, "> lenS ............ %d\n", S.size() );
+
+   // dump instance
+   if ( dump ) nmr.dump();
 
    std::set<int> U;
    for ( auto&& kv : S ) U.insert( kv.first );
@@ -1134,11 +1211,19 @@ int callSolvers( int argc, char* argv[] ) {
    auto costRX = costRelax( U, S );
    write_log( fid, "> costRX .......... %d\n", costRX );
 
+   // call order_greedy
+   std::vector<int> orderGreedy;
+   auto tic = TIME_NOW();
+   auto costGD = greedySolve( nmr, orderGreedy );
+   auto toc = ETS( tic );
+   write_log( fid, "> costGD .......... %d\n", costGD );
+   write_log( fid, "> timeGD (secs) ... %ld\n", toc );
+
    // call order_sbbu
    std::vector<int> orderSBBU;
-   auto tic = TIME_NOW();
+   tic = TIME_NOW();
    auto costSB = sbbuSolve( nmr, orderSBBU );
-   auto toc = ETS( tic );
+   toc = ETS( tic );
    write_log( fid, "> costSB .......... %d\n", costSB );
    write_log( fid, "> timeSB (secs) ... %ld\n", toc );
 
@@ -1151,7 +1236,7 @@ int callSolvers( int argc, char* argv[] ) {
    write_log( fid, "> costBB .......... %d\n", costBB );
    write_log( fid, "> timeBB (secs) ... %ld\n", toc );
 
-   // call order_pt if needed
+   // call order_pt
    PT pt( nmr );
    tic = TIME_NOW();
    auto costPT = pt.solve( tmax, verbose );
@@ -1159,6 +1244,14 @@ int callSolvers( int argc, char* argv[] ) {
    write_log( fid, "> timeoutPT ....... %d\n", pt.m_timeout ? 1 : 0 );
    write_log( fid, "> costPT .......... %d\n", costPT );
    write_log( fid, "> timePT (secs) ... %ld\n", toc );
+
+   // call brute force
+   tic = TIME_NOW();
+   std::vector<int> orderBF;
+   auto costBF = bruteSolve( nmr, orderBF );
+   toc = ETS( tic );
+   write_log( fid, "> costBF .......... %d\n", costBF );
+   write_log( fid, "> timeBF (secs) ... %ld\n", toc );
 
    fclose( fid );
 

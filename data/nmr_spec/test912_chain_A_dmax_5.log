@@ -1,0 +1,21 @@
+> fnmr data/nmr_spec/test912_chain_A_dmax_5.nmr
+> verbose ......... 0
+> clean_log ....... 1
+> dump ............ 1
+> tmax (secs) ..... 3600
+> nnodes .......... 20
+> lenE ............ 5
+> lenS ............ 8
+> costRX .......... 58
+> costGD .......... 116
+> timeGD (secs) ... 0
+> costSB .......... 138
+> timeSB (secs) ... 0
+> timeoutBB ....... 0
+> costBB .......... 96
+> timeBB (secs) ... 0
+> timeoutPT ....... 0
+> costPT .......... 96
+> timePT (secs) ... 0
+> costBF .......... 96
+> timeBF (secs) ... 0

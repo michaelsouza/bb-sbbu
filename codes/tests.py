@@ -10,7 +10,7 @@ from bb import *
 
 class TestNMR(unittest.TestCase):
     def test_segments(self):
-        fnmr = "DATA_TEST/testA.nmr"
+        fnmr = "data/nmr_test/testA.nmr"
         nmr = NMR(fnmr)
         S = nmr.segments
         Sans = [
@@ -26,7 +26,7 @@ class TestNMR(unittest.TestCase):
 
 class TestBB(unittest.TestCase):
     def test_solveA(self):
-        nmr = NMR("DATA_TEST/testA.nmr")
+        nmr = NMR("data/nmr_test/testA.nmr")
         bb = BB(nmr)
         orderBB, costBB = bb.solve()
         self.assertEqual(costBB, 168)
@@ -38,7 +38,7 @@ class TestBB(unittest.TestCase):
         self.assertLess(id1, id2)
 
     def test_solveB(self):
-        nmr = NMR("DATA_TEST/testB.nmr")
+        nmr = NMR("data/nmr_test/testB.nmr")
         bb = BB(nmr)
         orderBB, costBB = bb.solve()
         orderBB, costBF = order_brute(nmr)
@@ -47,7 +47,7 @@ class TestBB(unittest.TestCase):
             self.assertEqual(orderBB[i], orderBB[i])
 
     def test_solveC(self):
-        nmr = NMR("DATA_TEST/testC.nmr")
+        nmr = NMR("data/nmr_test/testC.nmr")
         bb = BB(nmr)
         orderBB, costBB = bb.solve()
         orderBB, costBF = order_brute(nmr)
@@ -56,7 +56,7 @@ class TestBB(unittest.TestCase):
             self.assertEqual(orderBB[i], orderBB[i])
 
     def test_solveD(self):
-        nmr = NMR("DATA_TEST/testD.nmr")
+        nmr = NMR("data/nmr_test/testD.nmr")
         bb = BB(nmr)
         orderBB, costBB = bb.solve()
         orderBB, costBF = order_brute(nmr)
@@ -65,7 +65,7 @@ class TestBB(unittest.TestCase):
             self.assertEqual(orderBB[i], orderBB[i])
 
     def test_solveE(self):
-        nmr = NMR("DATA_TEST/testE.nmr")
+        nmr = NMR("data/nmr_test/testE.nmr")
         bb = BB(nmr)
         orderBB, costBB = bb.solve()
         orderBB, costBF = order_brute(nmr)
@@ -82,7 +82,7 @@ class TestBBPerm(unittest.TestCase):
         self.assertEqual(emin, 18)
 
     def test_start_from(self):
-        nmr = NMR("DATA_TEST/testC.nmr")
+        nmr = NMR("data/nmr_test/testC.nmr")
         E = nmr.E
         bb = BBPerm(E.keys())
         # warming up BB
@@ -122,7 +122,7 @@ class TestBBPerm(unittest.TestCase):
 
 class TestPriorityTree(unittest.TestCase):
     def test_optimality(self):
-        wdir = "DATA_TEST"
+        wdir = os.path.join("data", "nmr_test")
         for fn in sorted(os.listdir(wdir)):
             if not fn.endswith(".nmr"):
                 continue
@@ -135,7 +135,7 @@ class TestPriorityTree(unittest.TestCase):
 
 class TestGreedy(unittest.TestCase):
     def test_optimality(self):
-        wdir = "DATA_TEST"
+        wdir = os.path.join("data", "nmr_test")
         for c in ["A", "B", "C", "D", "E", "F"]:
             nmr = NMR(os.path.join(wdir, "test%s.nmr" % c))
             orderBF, costBF = order_brute(nmr)
@@ -148,14 +148,14 @@ class TestInstances(unittest.TestCase):
         backbone_folder = os.path.join('data','backbones')
         nmr_folder = os.path.join('data','nmr')
 
-        # check the three smaller instances
-        nmr_files = [os.path.join(nmr_folder, fn) for fn in os.listdir(nmr_folder)]
+        PDB = ['1n6t']
 
-        # sort the files by size
-        nmr_files.sort(key=lambda fn: os.path.getsize(fn))
+        # get the nmr files for 1n6t
+        nmr_files = [fn for fn in os.listdir(nmr_folder) if fn.split('_')[0] in PDB and fn.endswith('.nmr')]
 
         # take the first 3
-        for nmr_file in nmr_files[:3]:
+        for nmr_file in nmr_files:
+            nmr_file = os.path.join(nmr_folder, nmr_file)
             # read edges
             E = {}
             with open(nmr_file, 'r') as f:

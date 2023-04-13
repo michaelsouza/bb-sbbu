@@ -4,6 +4,17 @@ import numpy as np
 import networkx as nx
 from codes.bb import order_brute, order_greedy, NMR
 
+def create_edges(nnodes, nedges):
+    lenE, E = 0, {}
+    while lenE < nedges:
+        i = np.random.randint(1, nnodes - 3)
+        j = np.random.randint(i + 4, nnodes + 1)
+        if i not in E:
+            E[i] = set()
+        if j not in E[i]:
+            E[i].add(j)
+            lenE += 1
+    return E
 
 if __name__ == "__main__":
     nnodes, nedges = 20, 5
@@ -11,21 +22,13 @@ if __name__ == "__main__":
     np.random.seed(1)
     MESSAGE = []
     for k in tqdm.tqdm(range(nsamples)):
-        lenE, E = 0, {}
-        while lenE < nedges:
-            i = np.random.randint(1, nnodes - 3)
-            j = np.random.randint(i + 4, nnodes + 1)
-            if i not in E:
-                E[i] = set()
-            if j not in E[i]:
-                E[i].add(j)
-                lenE += 1
+        E = create_edges(nnodes, nedges)
 
-        fn = "DATA_TEST/testRAND_%04d.nmr" % k
+        fn = f"data/nmr_rand/test{k}_chain_A_dmax_5.nmr"
         with open(fn, "w") as fid:
             for i in sorted(E):
                 for j in sorted(E[i]):
-                    fid.write("%d %d\n" % (i, j))
+                    fid.write("%3d %3d 1 1 X X PRO PRO\n" % (i, j))
 
         nmr = NMR(fn)
         orderBF, costBF = order_brute(nmr)
@@ -35,7 +38,6 @@ if __name__ == "__main__":
         if costBF == costGD:
             os.remove(fn)
         elif nx.number_connected_components(G) > 1:
-            MESSAGE.append("Remove disconnected(fn: %s)." % fn)
             os.remove(fn)
         else:
             msg = "Found interesting instance (BF: %03d, GD: %03d, fn: %s)."

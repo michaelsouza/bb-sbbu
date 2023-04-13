@@ -13,7 +13,7 @@
                 "-tmax",
                 "3600",
                 "-fnmr",
-                "DATA_EPSD_00_DMAX_60/4wua.nmr",
+                "data/nmr/1n6t_chain_A_dmax_5.nmr",
                 "-clean_log"
             ],
             "stopAtEntry": true,

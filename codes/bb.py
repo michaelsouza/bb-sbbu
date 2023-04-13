@@ -117,13 +117,16 @@ class NMR:
     def ordering_graph(self):
         G = nx.Graph()
         E, S = self.E, self.S
+        # add segment-vertex
         def s_lbl(sid): return '%d:%d' % (S[sid].i, S[sid].j)
         for sid in S:
             G.add_node(s_lbl(sid), weight=S[sid].weight)
 
+        # add edge-vertex
         for eid in E:
             e_lbl = '%d' % eid
             G.add_node(e_lbl)
+            # add hyperedge
             for sid in E[eid].sid:
                 G.add_edge(e_lbl, s_lbl(sid))
         return G

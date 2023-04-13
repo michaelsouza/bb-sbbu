@@ -1,4 +1,5 @@
 import os
+import numpy as np
 import pandas as pd
 from tqdm import tqdm
 from prody import parsePDB
@@ -51,6 +52,9 @@ def extract_backbones(backbones_folder: str, pdb_id: str):
         df = pd.DataFrame(backbone_data)
         df.to_csv(backbone_file, index=False)
 
+def fmt_nmr_row(edge):
+    fmt = '%4d %4d %.16e %.16e %4s %4s %5s %5s\n'
+    return fmt % edge
 
 def create_nmr(nmr_folder, backbone_file: str, dmax: int):
     print('Processing file: ', backbone_file)
@@ -83,8 +87,7 @@ def create_nmr(nmr_folder, backbone_file: str, dmax: int):
     # create the dataframe with the edges
     nmr_file = os.path.basename(backbone_file).split('.')[0]
     nmr_file = os.path.join(nmr_folder, f'{nmr_file}_dmax_{dmax}.nmr')
-    with open(nmr_file, 'w') as fd:
-        fmt = '%4d %4d %.16e %.16e %4s %4s %5s %5s\n'
+    with open(nmr_file, 'w') as fd:        
         for i, j in E:
             atom_i = atoms.iloc[i]
             atom_j = atoms.iloc[j]
@@ -100,9 +103,42 @@ def create_nmr(nmr_folder, backbone_file: str, dmax: int):
                 atom_j['atom_name'],
                 atom_i['residue_name'],
                 atom_j['residue_name']
-            )
-            edge = fmt % edge
-            fd.write(edge)
+            )            
+            fd.write(fmt_nmr_row(edge))
+    return nmr_file
+
+
+def create_nmrs(nmr_folder: str, backbones_folder: str, DMAX: list):
+    # list of backbone files
+    backbone_files = [os.path.join(backbones_folder, fn) for fn in os.listdir(backbones_folder)]
+    # keep only the backbone files with the A chain
+    backbone_files = [fn for fn in backbone_files if fn.endswith('_A.csv')]
+    # sort the backbone files by size
+    backbone_files = sorted(backbone_files, key=os.path.getsize)        
+    # create the NMR instance for the dmax = max(DMAX)
+    DMAX = sorted(DMAX) # ensure that DMAX is sorted
+    dmax = DMAX[-1] # get the last (max) element 
+    nmr_files = []
+    print(f'Creating NMR instances with dmax = {dmax}')
+    for backbone_file in tqdm(backbone_files):
+        nmr_files.append(create_nmr(nmr_folder, backbone_file, dmax))
+
+    # for the other dmax values, it's only necessary to drop the edges with d(i,j) > dmax
+    for nmr_file in tqdm(nmr_files):
+        nmr = pd.read_csv(nmr_file, sep='\s+', header=None)
+        # add column names
+        nmr.columns = ['i', 'j', 'dij', 'wij', 'atom_i', 'atom_j', 'residue_i', 'residue_j']
+        # create a column dij_val parsing the dij column
+        nmr['dij_val'] = nmr['dij'].apply(lambda x: float(x))
+        for dmax in DMAX[:-1]:
+            # keep only the edges with d(i,j) <= dmax or np.abs(i - j) <= 3
+            nmr_copy = nmr[(nmr['dij_val'] <= dmax) | (np.abs(nmr['i'] - nmr['j']) <= 3)].copy()
+            nmr_copy.drop(columns=['dij_val'], inplace=True)
+            # save the nmr file
+            nmr_dmax = nmr_file.replace(f'_dmax_{DMAX[-1]}', f'_dmax_{dmax}')
+            with open(nmr_dmax, 'w') as fd:
+                for i, row in nmr_copy.iterrows():
+                    fd.write(fmt_nmr_row(tuple(row.values)))
 
 
 if __name__ == '__main__':
@@ -111,7 +147,7 @@ if __name__ == '__main__':
         '1n6t', '1fw5', '1adx', '1bdo', '1all', '6s61', '1fhl', '4wua',
         '6czf', '5ijn', '6rn2', '1cza', '6bco', '1epw', '5np0', '5nug',
         '4rh7', '3vkh'
-    ]
+    ]    
     
     # create the pdb folder if it does not exist
     pdb_folder = os.path.join('data','pdb')
@@ -143,15 +179,5 @@ if __name__ == '__main__':
 
     # create the NMR instances
     print('Creating NMR instances')
-    DMAX = [5, 6] # list of dmax values
-    for dmax in DMAX:
-        print(f'Creating NMR instances with dmax = {dmax}')
-        # list of backbone files
-        backbone_files = [os.path.join(backbones_folder, fn) for fn in os.listdir(backbones_folder)]
-        # keep only the backbone files with the A chain
-        backbone_files = [fn for fn in backbone_files if fn.endswith('_A.csv')]
-        # sort the backbone files by size
-        backbone_files = sorted(backbone_files, key=os.path.getsize)
-        # create the NMR instances
-        for backbone_file in tqdm(backbone_files):
-            create_nmr(nmr_folder, backbone_file, dmax)
+    DMAX = [4, 5, 6, 7] # list of dmax values    
+    create_nmrs(nmr_folder, backbones_folder, DMAX)
