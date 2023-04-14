@@ -354,9 +354,11 @@ weight_t sbbuSolve( NMR& nmr, std::vector<int>& order ) {
    return costOrder( order, E, nmr.m_S );
 }
 
-weight_t bruteSolve( NMR& nmr, std::vector<int>& orderOPT ) {
+weight_t bruteSolve( NMR& nmr, std::vector<int>& orderOPT, size_t tmax = 60, weight_t costRX = WEIGHT_MAX ) {
    auto& E = nmr.m_E;
    auto& S = nmr.m_S;
+   auto tic = TIME_NOW();
+
    weight_t costOPT = WEIGHT_MAX;
 
    std::vector<int> order;
@@ -370,7 +372,11 @@ weight_t bruteSolve( NMR& nmr, std::vector<int>& orderOPT ) {
       if ( c < costOPT ) {
          costOPT = c;
          std::copy( order.begin(), order.end(), orderOPT.begin() );
+         // optimization: if the relaxed cost is the same as the optimal cost, then stop
+         if ( costRX == costOPT ) break;
       }
+      auto toc = ETS( tic );
+      if ( toc > tmax ) break;       
    } while ( std::next_permutation( order.begin(), order.end() ) );
 
    return costOPT;
@@ -1161,25 +1167,32 @@ int callSolvers( int argc, char* argv[] ) {
    bool clean_log = false;
    bool verbose = false;
    bool dump = false;
+   std::string solver = "BB";
 
+   // parsing the command line arguments
    for ( int i = 0; i < argc; ++i ) {
       auto arg = argv[ i ];
+      // fnmr: name of the NMR file
       if ( strcmp( arg, "-fnmr" ) == 0 ) fnmr = argv[ i + 1 ];
+      // tmax: maximum execution run time
       if ( strcmp( arg, "-tmax" ) == 0 ) tmax = atoi( argv[ i + 1 ] );
+      // clean_log: if true, the log file is cleaned before writing
       if ( strcmp( arg, "-clean_log" ) == 0 ) clean_log = true;
+      // verbose: if true, the log file is written
       if ( strcmp( arg, "-verbose" ) == 0 ) verbose = true;
+      // dump: if true, dump the NMR data structure
       if ( strcmp( arg, "-dump" ) == 0 ) dump = true;
+      // solver: name of the solver to be used
+      if ( strcmp( arg, "-solver" ) == 0 ) solver = argv[ i + 1 ];
    }
 
+   // replace ".nmr" by "_[solver].log"
    auto flog = fnmr;
-   size_t pos = flog.find( ".nmr" );
-   if ( pos != std::string::npos ) {
-      flog.replace( pos, 4, ".log" );
-   }
-
+   flog.replace( flog.find( ".nmr" ), 4, "_solver_" + solver + ".log" );
+   
    // check if already has a log file
    if ( !clean_log && exists( flog ) ) {
-      printf( "> skip (already solved) %s\n", fnmr.c_str() );
+      printf( "> skip (already solved) %s\n", flog.c_str() );
       return EXIT_SUCCESS;
    }
    // create log file
@@ -1201,6 +1214,7 @@ int callSolvers( int argc, char* argv[] ) {
    write_log( fid, "> nnodes .......... %d\n", nmr.m_nnodes );
    write_log( fid, "> lenE ............ %d\n", E.size() );
    write_log( fid, "> lenS ............ %d\n", S.size() );
+   write_log( fid, "> solver .......... %s\n", solver.c_str() );
 
    // dump instance
    if ( dump ) nmr.dump();
@@ -1227,31 +1241,41 @@ int callSolvers( int argc, char* argv[] ) {
    write_log( fid, "> costSB .......... %d\n", costSB );
    write_log( fid, "> timeSB (secs) ... %ld\n", toc );
 
-   // call order_bb
-   BB bb( nmr );
-   tic = TIME_NOW();
-   auto costBB = bb.solve( tmax, verbose );
-   toc = ETS( tic );
-   write_log( fid, "> timeoutBB ....... %d\n", bb.m_timeout ? 1 : 0 );
-   write_log( fid, "> costBB .......... %d\n", costBB );
-   write_log( fid, "> timeBB (secs) ... %ld\n", toc );
-
-   // call order_pt
-   PT pt( nmr );
-   tic = TIME_NOW();
-   auto costPT = pt.solve( tmax, verbose );
-   toc = ETS( tic );
-   write_log( fid, "> timeoutPT ....... %d\n", pt.m_timeout ? 1 : 0 );
-   write_log( fid, "> costPT .......... %d\n", costPT );
-   write_log( fid, "> timePT (secs) ... %ld\n", toc );
-
-   // call brute force
-   tic = TIME_NOW();
-   std::vector<int> orderBF;
-   auto costBF = bruteSolve( nmr, orderBF );
-   toc = ETS( tic );
-   write_log( fid, "> costBF .......... %d\n", costBF );
-   write_log( fid, "> timeBF (secs) ... %ld\n", toc );
+   if ( solver == "BB" ) {
+      // call order_bb
+      BB bb( nmr );
+      tic = TIME_NOW();
+      auto costBB = bb.solve( tmax, verbose );
+      toc = ETS( tic );
+      write_log( fid, "> timeoutBB ....... %d\n", bb.m_timeout ? 1 : 0 );
+      write_log( fid, "> costBB .......... %d\n", costBB );
+      write_log( fid, "> timeBB (secs) ... %ld\n", toc );
+   }
+   else if ( solver == "BF" ) {
+      // call brute force
+      tic = TIME_NOW();
+      std::vector<int> orderBF;
+      auto tmaxBF = tmax < 60 ? tmax : 60;
+      auto costBF = bruteSolve( nmr, orderBF,  tmaxBF);
+      toc = ETS( tic );
+      write_log( fid, "> timeoutBF ....... %d\n", toc >= tmaxBF ? 1 : 0);
+      write_log( fid, "> costBF .......... %d\n", costBF );
+      write_log( fid, "> timeBF (secs) ... %ld\n", toc );
+   }
+   else if ( solver == "PT" ) {
+      // call order_pt
+      PT pt( nmr );
+      tic = TIME_NOW();
+      auto costPT = pt.solve( tmax, verbose );
+      toc = ETS( tic );
+      write_log( fid, "> timeoutPT ....... %d\n", pt.m_timeout ? 1 : 0 );
+      write_log( fid, "> costPT .......... %d\n", costPT );
+      write_log( fid, "> timePT (secs) ... %ld\n", toc );
+   }
+   else {
+      // unknown solver
+      throw std::runtime_error( "Unknown solver." );
+   }
 
    fclose( fid );
 

@@ -14,7 +14,9 @@
                 "3600",
                 "-fnmr",
                 "data/nmr/1n6t_chain_A_dmax_5.nmr",
-                "-clean_log"
+                "-clean_log",
+                "-solver",
+                "BB"
             ],
             "stopAtEntry": true,
             "cwd": "${workspaceFolder}",

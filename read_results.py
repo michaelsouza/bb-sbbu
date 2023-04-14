@@ -1,8 +1,6 @@
 import os
 import sys
-import tqdm
 import pandas as pd
-import re
 
 def get_logs(wdir: list):
     # get all log files
@@ -64,17 +62,21 @@ if __name__ == "__main__":
 
     # read all log files
     df = []
-    for flog in tqdm.tqdm(FLOG):
+    for flog in FLOG:
         df.append(read_log(flog))
     # convert to dataframe
     df = pd.DataFrame(df)
     # convert to correct data types
-    df['verbose'] = df['tmax'].astype(bool)
+    df['dump'] = df['dump'].astype(bool)
+    df['verbose'] = df['verbose'].astype(bool)
     df['clean_log'] = df['clean_log'].astype(bool)
-    df['nnodes'] = df['nnodes'].astype(int)
-    df['lenE'] = df['lenE'].astype(int)
-    df['lenS'] = df['lenS'].astype(int)
-
+    df['tmax'] = df['tmax'].astype(int)
+    df['|V|'] = df['nnodes'].astype(int)
+    df['|E|'] = df['lenE'].astype(int)
+    df['|S|'] = df['lenS'].astype(int)    
+    # drop unnecessary columns
+    df.drop(['nnodes', 'lenE', 'lenS'], axis=1, inplace=True)
+    
     # sort columns
     df = df[sorted(df.columns)]
     
