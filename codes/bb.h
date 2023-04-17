@@ -893,6 +893,7 @@ public:
          eid = m_p.next();
       }
 
+      // update solution
       std::copy( orderOPT.begin(), orderOPT.end(), m_ord.begin() );
       return costUB;
    }
@@ -1226,20 +1227,33 @@ int callSolvers( int argc, char* argv[] ) {
    write_log( fid, "> costRX .......... %d\n", costRX );
 
    // call order_greedy
-   std::vector<int> orderGreedy;
+   std::vector<int> orderGD;
    auto tic = TIME_NOW();
-   auto costGD = greedySolve( nmr, orderGreedy );
+   auto costGD = greedySolve( nmr, orderGD );
    auto toc = ETS( tic );
    write_log( fid, "> costGD .......... %d\n", costGD );
    write_log( fid, "> timeGD (secs) ... %ld\n", toc );
+   // write order
+   if ( verbose ) {
+      write_log( fid, "> orderGD ......... " );
+      for ( auto eid : orderGD ) write_log( fid, "%d ", eid );
+      write_log( fid, " \n" );
+   }
 
    // call order_sbbu
-   std::vector<int> orderSBBU;
+   std::vector<int> orderSB;
    tic = TIME_NOW();
-   auto costSB = sbbuSolve( nmr, orderSBBU );
+   auto costSB = sbbuSolve( nmr, orderSB );
    toc = ETS( tic );
    write_log( fid, "> costSB .......... %d\n", costSB );
    write_log( fid, "> timeSB (secs) ... %ld\n", toc );
+   // write order
+   if ( verbose ) {
+      write_log( fid, "> orderSB ......... " );
+      for ( auto eid : orderSB ) write_log( fid, "%d ", eid );
+      write_log( fid, " \n" );
+   }
+
 
    if ( solver == "BB" ) {
       // call order_bb
@@ -1250,6 +1264,12 @@ int callSolvers( int argc, char* argv[] ) {
       write_log( fid, "> timeoutBB ....... %d\n", bb.m_timeout ? 1 : 0 );
       write_log( fid, "> costBB .......... %d\n", costBB );
       write_log( fid, "> timeBB (secs) ... %ld\n", toc );
+      // write order
+      if ( verbose ) {
+         write_log( fid, "> orderBB ......... " );
+         for ( auto eid : bb.m_ord ) write_log( fid, "%d ", eid );
+         write_log( fid, " \n" );
+      }
    }
    else if ( solver == "BF" ) {
       // call brute force
@@ -1261,6 +1281,12 @@ int callSolvers( int argc, char* argv[] ) {
       write_log( fid, "> timeoutBF ....... %d\n", toc >= tmaxBF ? 1 : 0);
       write_log( fid, "> costBF .......... %d\n", costBF );
       write_log( fid, "> timeBF (secs) ... %ld\n", toc );
+      // write order
+      if ( verbose ) {
+         write_log( fid, "> orderBF ......... " );
+         for ( auto eid : orderBF ) write_log( fid, "%d ", eid );
+         write_log( fid, " \n" );
+      }
    }
    else if ( solver == "PT" ) {
       // call order_pt
