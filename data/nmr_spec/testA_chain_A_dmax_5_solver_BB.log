@@ -1,5 +1,5 @@
-> fnmr data/nmr_spec/test189_chain_A_dmax_5.nmr
-> verbose ......... 0
+> fnmr data/nmr_spec/testA_chain_A_dmax_5.nmr
+> verbose ......... 1
 > clean_log ....... 0
 > dump ............ 0
 > tmax (secs) ..... 3600
@@ -10,8 +10,11 @@
 > costRX .......... 52
 > costGD .......... 158
 > timeGD (secs) ... 0
+> orderGD ......... 2 4 5 3 1  
 > costSB .......... 1040
 > timeSB (secs) ... 0
+> orderSB ......... 1 3 2 4 5  
 > timeoutBB ....... 0
 > costBB .......... 158
 > timeBB (secs) ... 0
+> orderBB ......... 2 3 1 4 5  

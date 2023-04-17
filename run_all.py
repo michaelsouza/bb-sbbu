@@ -35,7 +35,7 @@ def get_nmr_files(WDIR: list):
     return FNMR
 
 
-def get_command_lines(FNMR: str, tmax: int, clean_log: bool, dump_only: bool, solvers:list=['BB']):
+def get_command_lines(FNMR: str, tmax: int, clean_log: bool, dump_only: bool, solvers:list=['BB'], verbose:bool=False):
     CMD = [] # list of arguments
     for fnmr in FNMR:
         for solver in solvers:
@@ -46,6 +46,8 @@ def get_command_lines(FNMR: str, tmax: int, clean_log: bool, dump_only: bool, so
             # add clean_log flag
             if clean_log:
                 cmd += ' -clean_log'
+            if verbose:
+                cmd += ' -verbose'
             # arg = 'python codes/bb.py -tmax %d -fnmr %s -clean_log' % (tmax, fnmr)
             CMD.append(cmd)
 
@@ -63,6 +65,7 @@ if __name__ == "__main__":
     dump = False # if True, call the solvers with -dump 
     clean_log = False # if True, call the solvers with -clean_log
     solvers = ['BF']
+    verbose = False
 
     # read parameters
     for i, arg in enumerate(sys.argv):
@@ -70,17 +73,22 @@ if __name__ == "__main__":
             tmax = int(sys.argv[i+1])
         elif arg == '-wdir':
             wdir = sys.argv[i+1].split(',')
-        elif arg == '-solver':
+        elif arg == '-solvers':
             solvers = sys.argv[i+1].split(',')
         elif arg == '-dump':
             dump = True
         elif arg == '-clean_log':
             clean_log = True
+        elif arg == '-verbose':
+            verbose = True
         elif arg == '-help':
             print('Usage: python runAll.py [-tmax <int>] [-wdir <str>]')
             print('   -tmax <int>: maximum time to run each problem')
             print('   -wdir <str>: comma separated list of directories to run')
             print('   -solvers <str>: comma separated list of solvers to run')
+            print('   -dump: if True, call the solvers with -dump')
+            print('   -clean_log: if True, call the solvers with -clean_log')
+            print('   -verbose: if True, print more information')
             print('   -help: print this help message')
             sys.exit(0)
     
@@ -91,6 +99,7 @@ if __name__ == "__main__":
     print('   solver ...... %s' % solvers)
     print('   dump ........ %s' % dump)
     print('   clean_log ... %s' % clean_log)
+    print('   verbose ..... %s' % verbose)
     print('')
 
     # clean log files
@@ -101,7 +110,7 @@ if __name__ == "__main__":
     FNMR = get_nmr_files(wdir)
     
     # get command lines
-    CMD = get_command_lines(FNMR, tmax, clean_log, dump, solvers)
+    CMD = get_command_lines(FNMR, tmax, clean_log, dump, solvers, verbose)
     
     # run all command lines in CMD in parallel, but leave one core for the OS
     ncpu = mp.cpu_count() - 1

@@ -1,7 +1,7 @@
 clean_log,costBB,costBF,costGD,costRX,costSB,dump,fnmr,solver,timeBB,timeBF,timeGD,timeSB,timeoutBB,timeoutBF,tmax,verbose,|E|,|S|,|V|
-False,,92.0,136.0,92.0,198.0,False,data/nmr_spec/test892_chain_A_dmax_5.nmr,BF,,0.0,0.0,0.0,,0.0,3600,False,5,7,20
-False,,158.0,158.0,52.0,1040.0,False,data/nmr_spec/test189_chain_A_dmax_5.nmr,BF,,0.0,0.0,0.0,,0.0,3600,False,5,7,20
-False,92.0,,136.0,92.0,198.0,False,data/nmr_spec/test892_chain_A_dmax_5.nmr,BB,0.0,,0.0,0.0,0.0,,3600,False,5,7,20
-False,96.0,,116.0,58.0,138.0,False,data/nmr_spec/test912_chain_A_dmax_5.nmr,BB,0.0,,0.0,0.0,0.0,,3600,False,5,8,20
-False,158.0,,158.0,52.0,1040.0,False,data/nmr_spec/test189_chain_A_dmax_5.nmr,BB,0.0,,0.0,0.0,0.0,,3600,False,5,7,20
-False,,96.0,116.0,58.0,138.0,False,data/nmr_spec/test912_chain_A_dmax_5.nmr,BF,,0.0,0.0,0.0,,0.0,3600,False,5,8,20
+False,,158.0,158.0,52.0,1040.0,False,data/nmr_spec/testA_chain_A_dmax_5.nmr,BF,,0.0,0.0,0.0,,0.0,3600,False,5,7,20
+False,,92.0,136.0,92.0,198.0,False,data/nmr_spec/testB_chain_A_dmax_5.nmr,BF,,0.0,0.0,0.0,,0.0,3600,False,5,7,20
+False,,96.0,116.0,58.0,138.0,False,data/nmr_spec/testC_chain_A_dmax_5.nmr,BF,,0.0,0.0,0.0,,0.0,3600,False,5,8,20
+False,158.0,,158.0,52.0,1040.0,False,data/nmr_spec/testA_chain_A_dmax_5.nmr,BB,0.0,,0.0,0.0,0.0,,3600,False,5,7,20
+False,92.0,,136.0,92.0,198.0,False,data/nmr_spec/testB_chain_A_dmax_5.nmr,BB,0.0,,0.0,0.0,0.0,,3600,False,5,7,20
+False,96.0,,116.0,58.0,138.0,False,data/nmr_spec/testC_chain_A_dmax_5.nmr,BB,0.0,,0.0,0.0,0.0,,3600,False,5,8,20
