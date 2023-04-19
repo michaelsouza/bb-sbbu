@@ -66,6 +66,7 @@ if __name__ == "__main__":
     clean_log = False # if True, call the solvers with -clean_log
     solvers = ['BF']
     verbose = False
+    ncpu = mp.cpu_count() - 1
 
     # read parameters
     for i, arg in enumerate(sys.argv):
@@ -81,6 +82,8 @@ if __name__ == "__main__":
             clean_log = True
         elif arg == '-verbose':
             verbose = True
+        elif arg == '-ncpu':
+            ncpu = int(sys.argv[i+1])
         elif arg == '-help':
             print('Usage: python runAll.py [-tmax <int>] [-wdir <str>]')
             print('   -tmax <int>: maximum time to run each problem')
@@ -89,6 +92,7 @@ if __name__ == "__main__":
             print('   -dump: if True, call the solvers with -dump')
             print('   -clean_log: if True, call the solvers with -clean_log')
             print('   -verbose: if True, print more information')
+            print('   -ncpu <int>: number of cores to use')
             print('   -help: print this help message')
             sys.exit(0)
     
@@ -100,6 +104,7 @@ if __name__ == "__main__":
     print('   dump ........ %s' % dump)
     print('   clean_log ... %s' % clean_log)
     print('   verbose ..... %s' % verbose)
+    print('   ncpu ........ %d' % ncpu)
     print('')
 
     # clean log files
@@ -113,7 +118,6 @@ if __name__ == "__main__":
     CMD = get_command_lines(FNMR, tmax, clean_log, dump, solvers, verbose)
     
     # run all command lines in CMD in parallel, but leave one core for the OS
-    ncpu = mp.cpu_count() - 1
     print('Running %d jobs in parallel' % ncpu)
     with mp.Pool(ncpu) as pool:
         for _ in tqdm.tqdm(pool.imap(os.system, CMD), total=len(CMD)):

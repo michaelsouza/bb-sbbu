@@ -159,7 +159,6 @@ public:
       }
       setSegments();
       setOrderingData();
-      simplifying();
    }
 
    void dump() {
@@ -274,39 +273,7 @@ private:
          m_E[ e.m_eid ] = e;
       for ( auto&& s : m_segments )
          m_S[ s.m_sid ] = s;
-   }
-
-   void simplifying() {
-      for ( auto&& kv : m_S ) {
-         std::vector<int> K;
-         auto& s = kv.second;
-         for ( auto&& eidA : s.m_EID ) {
-            auto& a = m_E[ eidA ];
-            bool keepA = true;
-            for ( auto&& eidB : s.m_EID ) {
-               if ( eidA == eidB ) continue;
-               auto& b = m_E[ eidB ];
-               // a contains b, then b precedes a
-               if ( a.m_i <= b.m_i && b.m_j <= a.m_j ) {
-                  keepA = false;
-                  break;
-               }
-            }
-            if ( keepA ) K.push_back( eidA );
-         }
-         // update segment
-         s.m_EID = K;         
-      }
-      // update edges
-      for ( auto&& kv : m_E ) kv.second.m_SID.clear();
-      for ( auto&& kv : m_S ) {
-         auto& s = kv.second;
-         for ( auto&& eid : s.m_EID ) {
-            auto& e = m_E[ eid ];
-            e.m_SID.push_back( s.m_sid );
-         }
-      }
-   }
+   }   
 };
 
 
@@ -346,6 +313,7 @@ weight_t sbbuSolve( NMR& nmr, std::vector<int>& order ) {
        [ &E ]( const int& eidA, const int& eidB ) -> bool {
           const auto& eA = E[ eidA ];
           const auto& eB = E[ eidB ];
+          // sort by j (ascend), then by i (descend)
           if ( eA.m_j == eB.m_j )
              return eA.m_i > eB.m_i;
           return eA.m_j < eB.m_j;
@@ -879,6 +847,14 @@ public:
          if ( ( costRLX == 0 ) && ( costLB < costUB ) ) {
             costUB = costLB;
             std::copy( m_ord.begin(), m_ord.end(), orderOPT.begin() );
+            // print orderOPT
+            if ( verbose ) {
+               printf( "UB:%8llu, LB:%8llu, CE:%8llu, AC:%8llu, RL:%8llu, ", costUB, costLB, costEID, costACC, costRLX );
+               printf( " o:[" );
+               for ( int i = 0; i <= m_idx; ++i )
+                  printf( "%d, ", m_ord[ i ] );
+               printf( "]*\n" );
+            }
             // best possible solution found
             if ( costRELAX == costLB ) break;
          }
@@ -1141,8 +1117,10 @@ weight_t greedySolve( NMR& nmr, std::vector<int>& order ) {
          const auto eid = kv.first;
          const auto e = kv.second;
          weight_t cost = 1;
+         // compute cost
          for ( auto sid : e.m_SID ) {
             auto s = S.find( sid );
+            // segment is not covered
             if ( s != S.end() ) cost *= s->second.m_weight;
          }
          // update minimum cost edge
