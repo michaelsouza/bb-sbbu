@@ -60,8 +60,8 @@ def get_command_lines(FNMR: str, tmax: int, clean_log: bool, dump_only: bool, so
 
 if __name__ == "__main__":
     # set default parameters
-    tmax = 3600  # 1 hour
-    wdir = 'data/nmr' # list of directories to run
+    tmax = 7200  # 1 hour
+    wdir = ['data/nmr'] # list of directories to run
     dump = False # if True, call the solvers with -dump 
     clean_log = False # if True, call the solvers with -clean_log
     solvers = ['BB']
