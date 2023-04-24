@@ -61,12 +61,12 @@ def get_command_lines(FNMR: str, tmax: int, clean_log: bool, dump_only: bool, so
 if __name__ == "__main__":
     # set default parameters
     tmax = 3600  # 1 hour
-    wdir = 'data/nmr_test' # list of directories to run
+    wdir = 'data/nmr' # list of directories to run
     dump = False # if True, call the solvers with -dump 
     clean_log = False # if True, call the solvers with -clean_log
-    solvers = ['BF']
+    solvers = ['BB']
     verbose = False
-    ncpu = mp.cpu_count() - 1
+    ncpu = mp.cpu_count() - 1 # number of cores to use (leave one for the OS)
 
     # read parameters
     for i, arg in enumerate(sys.argv):

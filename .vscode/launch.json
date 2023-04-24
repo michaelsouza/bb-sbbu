@@ -5,6 +5,14 @@
     "version": "0.2.0",
     "configurations": [
         {
+            "name": "Python: Current File",
+            "type": "python",
+            "request": "launch",
+            "program": "${file}",
+            "console": "integratedTerminal",
+            "justMyCode": true
+        },
+        {
             "name": "(gdb) bb.bin",
             "type": "cppdbg",
             "request": "launch",
@@ -13,10 +21,11 @@
                 "-tmax",
                 "3600",
                 "-fnmr",
-                "data/nmr/1n6t_chain_A_dmax_5.nmr",
+                "data/nmr_spec/testA_chain_A_dmax_5.nmr",
                 "-clean_log",
                 "-solver",
-                "BB"
+                "BF",
+                "-verbose"
             ],
             "stopAtEntry": true,
             "cwd": "${workspaceFolder}",

@@ -31,5 +31,22 @@ add_executable(
   codes/bb.cpp
 )
 
+# Find GMP and GMPXX libraries
+find_library(GMP_LIBRARY gmp)
+find_library(GMPXX_LIBRARY gmpxx)
+
+target_link_libraries(
+    tests.bin
+    GTest::gtest_main
+    ${GMP_LIBRARY}
+    ${GMPXX_LIBRARY}
+)
+
+target_link_libraries(
+  bb.bin
+  ${GMP_LIBRARY}
+  ${GMPXX_LIBRARY}
+)
+
 include(GoogleTest)
 gtest_discover_tests(tests.bin)

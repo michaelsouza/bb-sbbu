@@ -1,3 +1,4 @@
+#include <iostream>
 #include <algorithm>
 #include <chrono>
 #include <climits>
@@ -13,9 +14,11 @@
 #include <stdexcept>
 #include <string>
 #include <vector>
+#include <gmpxx.h>
 
-using weight_t = unsigned long long int;
-#define WEIGHT_MAX ( ULONG_LONG_MAX / 2 )
+using weight_t = mpz_class; // weight type
+const weight_t WEIGHT_MAX( 1E9 ); // maximum weight
+
 #define TIME_NOW() ( std::chrono::steady_clock::now() )
 // Elapsed Time in Seconds (ETS)
 #define ETS( tic ) ( std::chrono::duration_cast<std::chrono::seconds>( TIME_NOW() - tic ).count() )
@@ -66,7 +69,7 @@ public:
    }
 
    void updateWeight() {
-      weight_t p = m_j - m_i + 1;
+      int p = m_j - m_i + 1; // p = j - i + 1 is the power of 2
       if ( p > 63 ) throw std::invalid_argument( "Segment weight is too large to be represented (overflow)." );
       m_weight = 1 << p;
    }
@@ -296,6 +299,8 @@ weight_t costOrder( std::vector<int>& order, std::map<int, NMREdge>& E, std::map
       }
       // the cost of an edge that covers no segment is zero (not one)
       total_cost += edge_cost > 1 ? edge_cost : 0;
+      // early termination, if the cost of the current order is already 
+      // greater than the costUB
       if ( total_cost >= costUB )
          return WEIGHT_MAX;
    }
@@ -322,7 +327,9 @@ weight_t sbbuSolve( NMR& nmr, std::vector<int>& order ) {
    return costOrder( order, E, nmr.m_S );
 }
 
-weight_t bruteSolve( NMR& nmr, std::vector<int>& orderOPT, size_t tmax = 60, weight_t costRX = WEIGHT_MAX ) {
+weight_t bruteSolve( NMR& nmr, std::vector<int>& orderOPT, size_t tmax = 60, weight_t costRX = WEIGHT_MAX, bool verbose = false) {
+   if ( verbose ) std::cout << "bruteSolve =============================" << std::endl;
+
    auto& E = nmr.m_E;
    auto& S = nmr.m_S;
    auto tic = TIME_NOW();
@@ -337,10 +344,21 @@ weight_t bruteSolve( NMR& nmr, std::vector<int>& orderOPT, size_t tmax = 60, wei
 
    do {
       auto c = costOrder( order, E, S );
+      if ( verbose ) {
+         std::cout << "cost = " << c;
+         std::cout << " order = [ ";
+         for ( auto&& eid : order )
+            std::cout << eid << " ";
+         std::cout << "]" << std::endl;
+      }
       if ( c < costOPT ) {
          costOPT = c;
          std::copy( order.begin(), order.end(), orderOPT.begin() );
-         // optimization: if the relaxed cost is the same as the optimal cost, then stop
+         if ( verbose ) {
+            std::cout << "UPDATE costOPT = " << costOPT << std::endl;
+         }
+         // if the relaxed cost is the same as the optimal cost, 
+         // then stop (solution found)
          if ( costRX == costOPT ) break;
       }
       auto toc = ETS( tic );
@@ -357,9 +375,16 @@ weight_t bruteSolve( NMR& nmr, std::vector<int>& orderOPT, size_t tmax = 60, wei
  * @param S Map of all sid's.
  * @return weight_t 
  */
-weight_t costRelax( std::set<int>& U, std::map<int, NMRSegment>& S ) {
+weight_t costRelax( std::set<int>& U, std::map<int, NMRSegment>& S, bool verbose = false ) {
    weight_t costTotal = 0;
-   for ( auto&& sid : U ) costTotal += S[ sid ].m_weight;
+   for ( auto&& sid : U ) 
+   {  
+      if ( verbose ) std::cout << "costTotal = " << costTotal << " + " << S[ sid ].m_weight << std::endl;
+      
+      costTotal = costTotal + S[ sid ].m_weight;
+      
+      if ( verbose ) std::cout << "          = " << costTotal << std::endl;
+   }
    return costTotal;
 }
 
@@ -374,6 +399,67 @@ weight_t costRelax( std::map<int, NMRSegment>& S ) {
    for ( auto&& kv : S )
       costTotal += S[ kv.first ].m_weight;
    return costTotal;
+}
+
+
+/**
+ * @brief Calculate the cost using a greedy algorithm.
+*/
+weight_t greedySolve( NMR& nmr, std::vector<int>& order , bool verbose = false ) {
+   if( verbose ) 
+      printf( "Solver: greedy\n" );
+
+   auto E( nmr.m_E );
+   auto S( nmr.m_S );
+
+   order.clear();
+   while ( E.size() > 0 ) {
+      int minEid = 0;
+      weight_t minCost = WEIGHT_MAX;
+      // find the edge with the minimum cost
+      for ( auto kv : E ) {
+         const auto eid = kv.first;
+         const auto e = kv.second;
+         mpz_class cost = 1; // compute cost, use mpz_class to avoid overflow
+         // compute cost
+         for ( auto sid : e.m_SID ) {
+            auto s = S.find( sid );
+            // segment is not covered
+            if ( s != S.end() ) {
+               mpz_class sid_cost = s->second.m_weight;
+               cost *= s->second.m_weight;
+               // cost is too high (avoid overflow)
+               if ( cost >= minCost || cost > WEIGHT_MAX) break;
+            }
+         }
+         // update minimum cost edge
+         if ( cost < minCost ) {
+            minCost = cost;
+            minEid = eid;
+         }
+      }
+      // add to order
+      order.push_back( minEid );
+
+      if(verbose) {
+         std::cout << "eid: " << minEid << " cost: " << minCost;
+         // print segments
+         printf( ", segments (i, j, weight): [ " );
+         for ( auto sid : E[ minEid ].m_SID ) {
+            auto s = S.find( sid );
+            if ( s != S.end() ){
+               std::cout << "(" << s->second.m_i << ", " << s->second.m_j << ", " << s->second.m_weight << ") ";
+            }
+         }
+         printf( "]\n" );
+      }
+
+      // update S and E by removing eid and the associated segments
+      for ( auto sid : E[ minEid ].m_SID ) S.erase( sid );
+      E.erase( minEid );
+   }
+
+   return costOrder( order, nmr.m_E, nmr.m_S );
 }
 
 /**
@@ -769,11 +855,12 @@ public:
             const auto& s = m_S[ sid ];
             // reduce the relaxed cost
             costRLX -= s.m_weight;
-            // avoid overflow by not incrementing costEid,
-            // if it's too large. the costEid will not be correctly
-            // calculated, but the eid will be pruned any way.
-            if ( costUB >= costACC + costEid )
-               costEid *= s.m_weight;
+            // Avoid overflow by not incrementing costEid if it's 
+            // too large. The costEid will not be correctly calculated, 
+            // but the eid will be pruned any way. We do not want to 
+            // break the loop because we need to update C and U.
+            if ( costUB >= costACC + costEid ) { costEid *= s.m_weight; }
+            else { costEid = WEIGHT_MAX; }
          }
       }
       costEid = costEid > 1 ? costEid : 0;
@@ -781,12 +868,18 @@ public:
       return costEid;
    }
 
-   weight_t solve( size_t tmax = 3600, bool verbose = false ) {
+   weight_t solve( weight_t costUB, std::vector<int> &orderOPT, size_t tmax = 3600, bool verbose = false) {
       if ( verbose ) printf( "\n\nsolving %s\n", m_nmr.m_fnmr.c_str() );
       m_niters = 0;
       auto tic = TIME_NOW();
-      std::vector<int> orderOPT;
-      weight_t costUB = sbbuSolve( m_nmr, orderOPT );
+      
+      // init orderOPT if it is empty
+      if( orderOPT.empty() ) {
+         if ( verbose ) printf( "Initial solution ========================\n" );         
+         // solve the NMR problem with the optimal algorithm
+         orderOPT.resize( m_E.size() );
+         costUB = greedySolve( m_nmr, orderOPT, verbose );
+      }
 
       // init m_order
       std::fill( m_ord.begin(), m_ord.end(), -1 );
@@ -816,6 +909,7 @@ public:
 
       int eid = m_p.next();
       // loop through all permutations
+      if ( verbose ) printf( "Start BB ================================\n" );
       while ( eid > -1 ) {
          ++m_niters;
          auto toc = ETS( tic );
@@ -826,13 +920,17 @@ public:
          }
 
          costACC -= remOrd( C, costRLX );
-         costEID = addOrd( eid, C, costRLX, costACC, costUB );
+         costEID = addOrd( eid, C, costRLX, costACC, costUB );         
 
+         // update costLB
          costACC += costEID;
          costLB = costACC + costRLX;
 
-         if ( verbose ) {
-            printf( "UB:%8llu, LB:%8llu, CE:%8llu, AC:%8llu, RL:%8llu, ", costUB, costLB, costEID, costACC, costRLX );
+         if ( verbose ) {            
+            printf( "UB:%10s, LB:%10s, CE:%10s, AC:%10s, RL:%10s, ", 
+               costUB.get_str().c_str(), costLB.get_str().c_str(),
+               costEID.get_str().c_str(), costACC.get_str().c_str(),
+               costRLX.get_str().c_str() );    
             printf( " o:[" );
             for ( int i = 0; i <= m_idx; ++i )
                printf( "%d, ", m_ord[ i ] );
@@ -849,11 +947,7 @@ public:
             std::copy( m_ord.begin(), m_ord.end(), orderOPT.begin() );
             // print orderOPT
             if ( verbose ) {
-               printf( "UB:%8llu, LB:%8llu, CE:%8llu, AC:%8llu, RL:%8llu, ", costUB, costLB, costEID, costACC, costRLX );
-               printf( " o:[" );
-               for ( int i = 0; i <= m_idx; ++i )
-                  printf( "%d, ", m_ord[ i ] );
-               printf( "]*\n" );
+               std::cout << "UPDATE: UB" << costUB << std::endl;
             }
             // best possible solution found
             if ( costRELAX == costLB ) break;
@@ -1104,42 +1198,6 @@ public:
    }
 };
 
-weight_t greedySolve( NMR& nmr, std::vector<int>& order ) {
-   auto E( nmr.m_E );
-   auto S( nmr.m_S );
-
-   order.clear();
-   while ( E.size() > 0 ) {
-      int minEid = 0;
-      weight_t minCost = WEIGHT_MAX;
-      // find the edge with the minimum cost
-      for ( auto kv : E ) {
-         const auto eid = kv.first;
-         const auto e = kv.second;
-         weight_t cost = 1;
-         // compute cost
-         for ( auto sid : e.m_SID ) {
-            auto s = S.find( sid );
-            // segment is not covered
-            if ( s != S.end() ) cost *= s->second.m_weight;
-         }
-         // update minimum cost edge
-         if ( cost < minCost ) {
-            minCost = cost;
-            minEid = eid;
-         }
-      }
-      // add to order
-      order.push_back( minEid );
-
-      // update S and E by removing eid and the associated segments
-      for ( auto sid : E[ minEid ].m_SID ) S.erase( sid );
-      E.erase( minEid );
-   }
-
-   return costOrder( order, nmr.m_E, nmr.m_S );
-}
-
 int callSolvers( int argc, char* argv[] ) {
    std::string fnmr = "/home/michael/gitrepos/bb-sbbu/DATA_TEST/testC.nmr";
    size_t tmax = 3600;
@@ -1163,6 +1221,19 @@ int callSolvers( int argc, char* argv[] ) {
       if ( strcmp( arg, "-dump" ) == 0 ) dump = true;
       // solver: name of the solver to be used
       if ( strcmp( arg, "-solver" ) == 0 ) solver = argv[ i + 1 ];
+      // help: print help
+      if ( strcmp( arg, "-help" ) == 0 ) {
+         printf( "Usage: %s [options]\n", argv[ 0 ] );
+         printf( "Options:\n" );
+         printf( "  -fnmr <string>      : name of the NMR file\n" );
+         printf( "  -tmax <int>         : maximum execution run time\n" );
+         printf( "  -clean_log          : if true, the log file is cleaned before writing\n" );
+         printf( "  -verbose            : if true, the log file is written\n" );
+         printf( "  -dump               : if true, dump the NMR data structure\n" );
+         printf( "  -solver <string>    : name of the solver to be used\n" );
+         printf( "  -help               : print help\n" );
+         return EXIT_SUCCESS;
+      }
    }
 
    // replace ".nmr" by "_[solver].log"
@@ -1201,15 +1272,15 @@ int callSolvers( int argc, char* argv[] ) {
    std::set<int> U;
    for ( auto&& kv : S ) U.insert( kv.first );
 
-   auto costRX = costRelax( U, S );
-   write_log( fid, "> costRX .......... %d\n", costRX );
+   auto costRX = costRelax( U, S, verbose );
+   write_log( fid, "> costRX .......... %s\n", costRX.get_str().c_str() );
 
    // call order_greedy
    std::vector<int> orderGD;
    auto tic = TIME_NOW();
-   auto costGD = greedySolve( nmr, orderGD );
+   auto costGD = greedySolve( nmr, orderGD, verbose );
    auto toc = ETS( tic );
-   write_log( fid, "> costGD .......... %d\n", costGD );
+   write_log( fid, "> costGD .......... %s\n", costGD.get_str().c_str() );
    write_log( fid, "> timeGD (secs) ... %ld\n", toc );
    // write order
    if ( verbose ) {
@@ -1218,12 +1289,18 @@ int callSolvers( int argc, char* argv[] ) {
       write_log( fid, " \n" );
    }
 
+   // check if costGD < costRX (should not happen)
+   if ( costGD < costRX ) {
+      write_log( fid, "ERROR: costGD = %s < costRX = %s\n", costGD.get_str().c_str(), costRX.get_str().c_str() );
+      return EXIT_FAILURE;
+   }
+
    // call order_sbbu
    std::vector<int> orderSB;
    tic = TIME_NOW();
    auto costSB = sbbuSolve( nmr, orderSB );
    toc = ETS( tic );
-   write_log( fid, "> costSB .......... %d\n", costSB );
+   write_log( fid, "> costSB .......... %s\n", costSB.get_str().c_str() );
    write_log( fid, "> timeSB (secs) ... %ld\n", toc );
    // write order
    if ( verbose ) {
@@ -1232,21 +1309,34 @@ int callSolvers( int argc, char* argv[] ) {
       write_log( fid, " \n" );
    }
 
+   // check if costSB < costRX (should not happen)
+   if ( costSB < costRX ) {
+      write_log( fid, "ERROR: costSB = %s < costRX = %s\n", costSB.get_str().c_str(), costRX.get_str().c_str() );
+      return EXIT_FAILURE;
+   }   
 
    if ( solver == "BB" ) {
       // call order_bb
       BB bb( nmr );
       tic = TIME_NOW();
-      auto costBB = bb.solve( tmax, verbose );
+      auto costUB = costGD < costSB ? costGD : costSB;
+      auto orderBB = costGD < costSB ? orderGD : orderSB;
+      auto costBB = bb.solve( costUB, orderBB, tmax, verbose );
       toc = ETS( tic );
       write_log( fid, "> timeoutBB ....... %d\n", bb.m_timeout ? 1 : 0 );
-      write_log( fid, "> costBB .......... %d\n", costBB );
+      write_log( fid, "> costBB .......... %s\n", costBB.get_str().c_str() );
       write_log( fid, "> timeBB (secs) ... %ld\n", toc );
       // write order
       if ( verbose ) {
          write_log( fid, "> orderBB ......... " );
          for ( auto eid : bb.m_ord ) write_log( fid, "%d ", eid );
          write_log( fid, " \n" );
+      }
+
+      // check if costBB < costRX (should not happen)
+      if ( costBB < costRX ) {
+         write_log( fid, "ERROR: costBB = %s < costRX = %s\n", costBB.get_str().c_str(), costRX.get_str().c_str() );
+         return EXIT_FAILURE;
       }
    }
    else if ( solver == "BF" ) {
@@ -1257,7 +1347,7 @@ int callSolvers( int argc, char* argv[] ) {
       auto costBF = bruteSolve( nmr, orderBF,  tmaxBF);
       toc = ETS( tic );
       write_log( fid, "> timeoutBF ....... %d\n", toc >= tmaxBF ? 1 : 0);
-      write_log( fid, "> costBF .......... %d\n", costBF );
+      write_log( fid, "> costBF .......... %s\n", costBF.get_str().c_str() );
       write_log( fid, "> timeBF (secs) ... %ld\n", toc );
       // write order
       if ( verbose ) {
@@ -1273,7 +1363,7 @@ int callSolvers( int argc, char* argv[] ) {
       auto costPT = pt.solve( tmax, verbose );
       toc = ETS( tic );
       write_log( fid, "> timeoutPT ....... %d\n", pt.m_timeout ? 1 : 0 );
-      write_log( fid, "> costPT .......... %d\n", costPT );
+      write_log( fid, "> costPT .......... %s\n", costPT.get_str().c_str() );
       write_log( fid, "> timePT (secs) ... %ld\n", toc );
    }
    else {

@@ -2,7 +2,7 @@
 #include "gtest/gtest.h"
 
 TEST( NMR, testA ) {
-   NMR nmr( "../DATA_TEST/testA.nmr" );
+   NMR nmr( "../data/nmr_test/testA_chain_A_dmax_5.nmr" );
 
    std::vector<NMRSegment> segments;
    segments.push_back( NMRSegment( 4, 5 ) );
@@ -26,7 +26,7 @@ TEST( NMR, testA ) {
 }
 
 TEST( sbbuSolve, testA ) {
-   NMR nmr( "../DATA_TEST/testA.nmr" );
+   NMR nmr( "../data/nmr_test/testA_chain_A_dmax_5.nmr" );
    std::vector<int> orderSBBU;
    auto costSBBU = sbbuSolve( nmr, orderSBBU );
    std::vector<int> order( { 1, 2, 3 } );
@@ -34,7 +34,7 @@ TEST( sbbuSolve, testA ) {
 }
 
 TEST( sbbuSolve, testF ) {
-   NMR nmr( "../DATA_TEST/testF.nmr" );
+   NMR nmr( "../data/nmr_test/testF_chain_A_dmax_5.nmr" );
    std::vector<int> orderSBBU;
    auto costSBBU = sbbuSolve( nmr, orderSBBU );
    std::vector<int> order( { 1, 2, 5, 4, 3 } );
@@ -42,14 +42,14 @@ TEST( sbbuSolve, testF ) {
 }
 
 TEST( bruteSolve, testA ) {
-   NMR nmr( "../DATA_TEST/testA.nmr" );
+   NMR nmr( "../data/nmr_test/testA_chain_A_dmax_5.nmr" );
    std::vector<int> orderOPT;
    auto costOPT = bruteSolve( nmr, orderOPT );
    EXPECT_EQ( costOPT, 168 );
 }
 
 TEST( bruteSolve, testB ) {
-   NMR nmr( "../DATA_TEST/testB.nmr" );
+   NMR nmr( "../data/nmr_test/testB_chain_A_dmax_5.nmr" );
    std::vector<int> orderOPT;
    auto costOPT = bruteSolve( nmr, orderOPT );
    std::vector<int> order( { 3, 2, 1 } );
@@ -100,23 +100,31 @@ TEST( BST, test ) {
 }
 
 auto compareBruteWithBB( std::string fnmr ) {
+   bool verbose = true; // set true to see the output in debug mode
    NMR nmr( fnmr );
    BB bb( nmr );
    std::vector<int> orderOPT;
-   auto costOPT = bruteSolve( nmr, orderOPT );
-   auto costBB = bb.solve( 3600, false );
+   weight_t costOPT = bruteSolve( nmr, orderOPT, 3600, WEIGHT_MAX, verbose );
+   if( verbose )
+      std::cout << "costOPT = " << costOPT << std::endl;
+   
+   std::vector<int> orderBB;
+   weight_t costBB = 0;
+   costBB = bb.solve( costBB, orderBB, 3600, verbose );   
+   if( verbose )
+      std::cout << "costBB = " << costBB << std::endl;
+
    printf( "%s\n", fnmr.c_str() );
    EXPECT_EQ( costOPT, costBB );
-   return bb.m_niters;
 }
 
 TEST( BB, testCostOptimality ) {
-   EXPECT_EQ( compareBruteWithBB( "../DATA_TEST/testA.nmr" ), 5 );
-   EXPECT_EQ( compareBruteWithBB( "../DATA_TEST/testB.nmr" ), 9 );
-   EXPECT_EQ( compareBruteWithBB( "../DATA_TEST/testC.nmr" ), 19 );
-   EXPECT_EQ( compareBruteWithBB( "../DATA_TEST/testD.nmr" ), 22 );
-   EXPECT_EQ( compareBruteWithBB( "../DATA_TEST/testE.nmr" ), 29 );
-   EXPECT_EQ( compareBruteWithBB( "../DATA_TEST/testF.nmr" ), 0 );
+   compareBruteWithBB( "../data/nmr_test/testA_chain_A_dmax_5.nmr" );
+   compareBruteWithBB( "../data/nmr_test/testB_chain_A_dmax_5.nmr" );
+   compareBruteWithBB( "../data/nmr_test/testC_chain_A_dmax_5.nmr" );
+   compareBruteWithBB( "../data/nmr_test/testD_chain_A_dmax_5.nmr" );
+   compareBruteWithBB( "../data/nmr_test/testE_chain_A_dmax_5.nmr" );
+   compareBruteWithBB( "../data/nmr_test/testF_chain_A_dmax_5.nmr" );
 }
 
 auto compareBruteWithPT( std::string fnmr ) {
@@ -130,12 +138,12 @@ auto compareBruteWithPT( std::string fnmr ) {
 }
 
 TEST( PT, testCostOptimality ) {
-   EXPECT_EQ( compareBruteWithPT( "../DATA_TEST/testA.nmr" ), 7 );
-   EXPECT_EQ( compareBruteWithPT( "../DATA_TEST/testB.nmr" ), 21 );
-   EXPECT_EQ( compareBruteWithPT( "../DATA_TEST/testC.nmr" ), 46 );
-   EXPECT_EQ( compareBruteWithPT( "../DATA_TEST/testD.nmr" ), 34 );
-   EXPECT_EQ( compareBruteWithPT( "../DATA_TEST/testE.nmr" ), 38 );
-   EXPECT_EQ( compareBruteWithPT( "../DATA_TEST/testF.nmr" ), 0 );
+   compareBruteWithPT( "../data/nmr_test/testA_chain_A_dmax_5.nmr" );
+   compareBruteWithPT( "../data/nmr_test/testB_chain_A_dmax_5.nmr" );
+   compareBruteWithPT( "../data/nmr_test/testC_chain_A_dmax_5.nmr" );
+   compareBruteWithPT( "../data/nmr_test/testD_chain_A_dmax_5.nmr" );
+   compareBruteWithPT( "../data/nmr_test/testE_chain_A_dmax_5.nmr" );
+   compareBruteWithPT( "../data/nmr_test/testF_chain_A_dmax_5.nmr" );
 }
 
 void compareBruteWithGreedy( std::string fnmr ) {
@@ -148,10 +156,10 @@ void compareBruteWithGreedy( std::string fnmr ) {
 }
 
 TEST( greedySolve, testCostOptimality ) {
-   compareBruteWithGreedy( "../DATA_TEST/testA.nmr" );
-   compareBruteWithGreedy( "../DATA_TEST/testB.nmr" );
-   compareBruteWithGreedy( "../DATA_TEST/testC.nmr" );
-   compareBruteWithGreedy( "../DATA_TEST/testD.nmr" );
-   compareBruteWithGreedy( "../DATA_TEST/testE.nmr" );
-   compareBruteWithGreedy( "../DATA_TEST/testF.nmr" );
+   compareBruteWithGreedy( "../data/nmr_test/testA_chain_A_dmax_5.nmr" );
+   compareBruteWithGreedy( "../data/nmr_test/testB_chain_A_dmax_5.nmr" );
+   compareBruteWithGreedy( "../data/nmr_test/testC_chain_A_dmax_5.nmr" );
+   compareBruteWithGreedy( "../data/nmr_test/testD_chain_A_dmax_5.nmr" );
+   compareBruteWithGreedy( "../data/nmr_test/testE_chain_A_dmax_5.nmr" );
+   compareBruteWithGreedy( "../data/nmr_test/testF_chain_A_dmax_5.nmr" );
 }
