@@ -61,7 +61,7 @@ def get_command_lines(FNMR: str, tmax: int, clean_log: bool, dump_only: bool, so
 if __name__ == "__main__":
     # set default parameters
     tmax = 7200  # 1 hour
-    wdir = ['data/nmr'] # list of directories to run
+    wdir = ['data/nmr_spec'] # list of directories to run
     dump = False # if True, call the solvers with -dump 
     clean_log = False # if True, call the solvers with -clean_log
     solvers = ['BB']
@@ -85,7 +85,7 @@ if __name__ == "__main__":
         elif arg == '-ncpu':
             ncpu = int(sys.argv[i+1])
         elif arg == '-help':
-            print('Usage: python runAll.py [-tmax <int>] [-wdir <str>]')
+            print('Usage: python run_all.py [options]')
             print('   -tmax <int>: maximum time to run each problem')
             print('   -wdir <str>: comma separated list of directories to run')
             print('   -solvers <str>: comma separated list of solvers to run')

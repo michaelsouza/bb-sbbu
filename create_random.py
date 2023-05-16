@@ -17,7 +17,7 @@ def create_edges(nnodes, nedges):
     return E
 
 if __name__ == "__main__":
-    nnodes, nedges = 20, 5
+    nnodes, nedges = 15, 4
     nsamples = 1000
     np.random.seed(1)
     MESSAGE = []
@@ -40,7 +40,7 @@ if __name__ == "__main__":
         elif nx.number_connected_components(G) > 1:
             os.remove(fn)
         else:
-            msg = "Found interesting instance (BF: %03d, GD: %03d, fn: %s)."
+            msg = "Found interesting instance (BF: %3d, GD: %3d, fn: %s)."
             MESSAGE.append(msg % (costBF, costGD, fn))
 
     for message in MESSAGE:

@@ -18,3 +18,11 @@ vtune/bb/r*
 DATA_TEST/testRAND_*
 data/backbones/*
 data/pdb/*
+data/nmr/*.dmp
+data/nmr/*.log
+data/nmr_rand/*
+data/nmr_test/*.log
+data/nmr_test/*.dmp
+data/nmr_spec/*.dmp
+data/nmr_chk/*.dmp
+data/nmr_chk/*.log
