@@ -407,7 +407,7 @@ weight_t costRelax( std::map<int, NMRSegment>& S ) {
 */
 weight_t greedySolve( NMR& nmr, std::vector<int>& order , bool verbose = false ) {
    if( verbose ) 
-      printf( "Solver: greedy\n" );
+      printf( "Start GD =============================\n" );
 
    auto E( nmr.m_E );
    auto S( nmr.m_S );
@@ -947,7 +947,7 @@ public:
             std::copy( m_ord.begin(), m_ord.end(), orderOPT.begin() );
             // print orderOPT
             if ( verbose ) {
-               std::cout << "UPDATE: UB" << costUB << std::endl;
+               std::cout << "UPDATE UB: " << costUB << std::endl;
             }
             // best possible solution found
             if ( costRELAX == costLB ) break;

@@ -21,6 +21,11 @@ if __name__ == "__main__":
     nsamples = 1000
     np.random.seed(1)
     MESSAGE = []
+
+    # create data/nmr_rand folder
+    if not os.path.exists("data/nmr_rand"):
+        os.makedirs("data/nmr_rand")
+        
     for k in tqdm.tqdm(range(nsamples)):
         E = create_edges(nnodes, nedges)
 

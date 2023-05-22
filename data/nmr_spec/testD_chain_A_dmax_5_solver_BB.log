@@ -1,0 +1,20 @@
+> fnmr data/nmr_spec/testA_chain_A_dmax_5.nmr
+> verbose ......... 1
+> clean_log ....... 1
+> dump ............ 1
+> tmax (secs) ..... 3600
+> nnodes .......... 20
+> lenE ............ 5
+> lenS ............ 7
+> solver .......... BB
+> costRX .......... 92
+> costGD .......... 136
+> timeGD (secs) ... 0
+> orderGD ......... 5 4 1 2 3  
+> costSB .......... 198
+> timeSB (secs) ... 0
+> orderSB ......... 1 2 4 5 3  
+> timeoutBB ....... 0
+> costBB .......... 92
+> timeBB (secs) ... 0
+> orderBB ......... 5 4 3 2 1  
