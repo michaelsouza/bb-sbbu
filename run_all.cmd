@@ -1,6 +1,21 @@
-./build/bb.bin -tmax 3600 -fnmr data/nmr_spec/testA_chain_A_dmax_5.nmr -solver BF -clean_log
-./build/bb.bin -tmax 3600 -fnmr data/nmr_spec/testA_chain_A_dmax_5.nmr -solver BB -clean_log
-./build/bb.bin -tmax 3600 -fnmr data/nmr_spec/testB_chain_A_dmax_5.nmr -solver BF -clean_log
-./build/bb.bin -tmax 3600 -fnmr data/nmr_spec/testB_chain_A_dmax_5.nmr -solver BB -clean_log
-./build/bb.bin -tmax 3600 -fnmr data/nmr_spec/testC_chain_A_dmax_5.nmr -solver BF -clean_log
-./build/bb.bin -tmax 3600 -fnmr data/nmr_spec/testC_chain_A_dmax_5.nmr -solver BB -clean_log
+./build/bb.bin -tmax 7200 -fnmr data/nmr_rand/test476_chain_A_dmax_5.nmr -solver BB
+./build/bb.bin -tmax 7200 -fnmr data/nmr_rand/test642_chain_A_dmax_5.nmr -solver BB
+./build/bb.bin -tmax 7200 -fnmr data/nmr_rand/test20_chain_A_dmax_5.nmr -solver BB
+./build/bb.bin -tmax 7200 -fnmr data/nmr_rand/test895_chain_A_dmax_5.nmr -solver BB
+./build/bb.bin -tmax 7200 -fnmr data/nmr_rand/test702_chain_A_dmax_5.nmr -solver BB
+./build/bb.bin -tmax 7200 -fnmr data/nmr_rand/test78_chain_A_dmax_5.nmr -solver BB
+./build/bb.bin -tmax 7200 -fnmr data/nmr_rand/test804_chain_A_dmax_5.nmr -solver BB
+./build/bb.bin -tmax 7200 -fnmr data/nmr_rand/test164_chain_A_dmax_5.nmr -solver BB
+./build/bb.bin -tmax 7200 -fnmr data/nmr_rand/test305_chain_A_dmax_5.nmr -solver BB
+./build/bb.bin -tmax 7200 -fnmr data/nmr_rand/test150_chain_A_dmax_5.nmr -solver BB
+./build/bb.bin -tmax 7200 -fnmr data/nmr_rand/test149_chain_A_dmax_5.nmr -solver BB
+./build/bb.bin -tmax 7200 -fnmr data/nmr_rand/test997_chain_A_dmax_5.nmr -solver BB
+./build/bb.bin -tmax 7200 -fnmr data/nmr_rand/test719_chain_A_dmax_5.nmr -solver BB
+./build/bb.bin -tmax 7200 -fnmr data/nmr_rand/test794_chain_A_dmax_5.nmr -solver BB
+./build/bb.bin -tmax 7200 -fnmr data/nmr_rand/test347_chain_A_dmax_5.nmr -solver BB
+./build/bb.bin -tmax 7200 -fnmr data/nmr_rand/test34_chain_A_dmax_5.nmr -solver BB
+./build/bb.bin -tmax 7200 -fnmr data/nmr_rand/test133_chain_A_dmax_5.nmr -solver BB
+./build/bb.bin -tmax 7200 -fnmr data/nmr_rand/test257_chain_A_dmax_5.nmr -solver BB
+./build/bb.bin -tmax 7200 -fnmr data/nmr_rand/test700_chain_A_dmax_5.nmr -solver BB
+./build/bb.bin -tmax 7200 -fnmr data/nmr_rand/test842_chain_A_dmax_5.nmr -solver BB
+./build/bb.bin -tmax 7200 -fnmr data/nmr_rand/test116_chain_A_dmax_5.nmr -solver BB

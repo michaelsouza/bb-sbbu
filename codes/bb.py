@@ -113,10 +113,10 @@ class NMR:
                     s.add_eid(edge.eid)
         return S
 
-    @property
-    def ordering_graph(self):
+    def ordering_graph(self, use_weight=False):
         G = nx.Graph()
         E, S = self.E, self.S
+        
         # add segment-vertex
         def s_lbl(sid): return '%d:%d' % (S[sid].i, S[sid].j)
         for sid in S:
